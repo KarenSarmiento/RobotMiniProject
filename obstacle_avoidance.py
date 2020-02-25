@@ -19,37 +19,15 @@ from gazebo_msgs.msg import ModelStates
 from tf.transformations import euler_from_quaternion
 
 
-def braitenberg(front, front_left, front_right, left, right):
-    s = np.array([[left, front_left, front, front_right, right]])
-    s = np.vectorize(lambda x: 1./x)(s)
-    s = np.transpose(s)
-    ws = np.array([[0.25, 0.05, 0.05, 0.05, 0.25],
-                   [-0.4, -1.2, -0.4, 1.5, 0.4]])
-
-    vs = ws.dot(s)
-    u = vs[0][0] + 0.2
-    w = vs[1][0] + 0.1
-    return u*0.7, w*0.8
-
-
-def rule_based(front, front_left, front_right, left, right):
-    # print(front, front_left, front_right, left, right)
-    # MISSING: Implement a rule-based controller that avoids obstacles.
-    if front < 1:
-        w = -1
-        u = -2 + 3*front
-    elif front < 2:
-        w = -0.2
-        u = 0.5*front
-    else:
-        w = 0
-        u = 1
-    if front_left < 0.2:
-        w = -0.5
-    if front_right < 0.2:
-        w = 0.5
-    return u, w
-
+def get_velocities(front, front_left, front_right, left, right):
+  sensors = np.array([1/left, 1/front_left, 1/front, 1/front_right, 1/right])
+  angular_weights = np.array([-0.5, -1.0, 2.0, 1.0, 0.5])
+  angular_scale_factor = 1.0/6.0
+  w = np.dot(sensors, angular_weights) * angular_scale_factor
+  vel_weights = np.array([0.0, 0.1, 0.5, 0.1, 0.0])
+  vel_scale_factor = 1.0
+  u = 1.0 - np.dot(sensors, vel_weights) * vel_scale_factor
+  return u, w # ([m/s], [rad/s])
 
 class SimpleLaser(object):
     def __init__(self, name=""):
@@ -124,80 +102,62 @@ class GroundtruthPose(object):
         return self._pose
 
 
-def run(args):
-    rospy.init_node('obstacle_avoidance')
-    avoidance_method = globals()[args.mode]
+class Robot(object):
 
-    # Update control every 100 ms.
-    rate_limiter = rospy.Rate(100)
-    publisher = rospy.Publisher('/tb3_0/cmd_vel', Twist, queue_size=5)
-    publisher1 = rospy.Publisher('/tb3_1/cmd_vel', Twist, queue_size=5)
-    publisher2 = rospy.Publisher('/tb3_2/cmd_vel', Twist, queue_size=5)
-    laser = SimpleLaser(name="tb3_0")
-    laser1 = SimpleLaser(name="tb3_1")
-    laser2 = SimpleLaser(name="tb3_2")
-    # Keep track of groundtruth position for plotting purposes.
-    groundtruth = GroundtruthPose(name="tb3_0")
-    groundtruth1 = GroundtruthPose(name="tb3_1")
-    groundtruth2 = GroundtruthPose(name="tb3_2")
-    pose_history = []
-    pose_history1 = []
-    pose_history2 = []
-    with open('/tmp/gazebo_exercise.txt', 'w'):
-        pass
-
-    while not rospy.is_shutdown():
-        # Make sure all measurements are ready.
-        if not laser.ready or not groundtruth.ready:
+    def __init__(self, name):
+        self.groundtruth = GroundtruthPose(name)
+        self.pose_history = []
+        self.publisher = rospy.Publisher('/' + name + '/cmd_vel', Twist, queue_size=5)
+        self.laser = SimpleLaser(name=name)
+        self.name = name
+        with open('/tmp/gazebo_exercise_'+self.name+'.txt', 'w'):
+            pass
+    
+    def update_velocities(self, rate_limiter):
+        if not self.laser.ready or not self.groundtruth.ready:
             rate_limiter.sleep()
-            continue
-
-        u, w = avoidance_method(*laser.measurements)
+            return
+        u, w = get_velocities(*self.laser.measurements)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
-        publisher.publish(vel_msg)
+        self.publisher.publish(vel_msg)
+        self.pose_history.append(self.groundtruth.pose)
 
-        u, w = avoidance_method(*laser1.measurements)
-        vel_msg1 = Twist()
-        vel_msg1.linear.x = u
-        vel_msg1.angular.z = w
-        publisher1.publish(vel_msg1)
-
-        u, w = avoidance_method(*laser2.measurements)
-        vel_msg2 = Twist()
-        vel_msg2.linear.x = u
-        vel_msg2.angular.z = w
-        publisher2.publish(vel_msg2)
-
-        # Log groundtruth positions in /tmp/gazebo_exercise.txt
-        pose_history.append(groundtruth.pose)
-        pose_history1.append(groundtruth1.pose)
-        pose_history2.append(groundtruth2.pose)
-
-        if len(pose_history) % 10:
-            with open('/tmp/gazebo_exercise.txt', 'a') as fp:
+        if len(self.pose_history) % 10:
+            with open('/tmp/gazebo_exercise_'+self.name+'.txt', 'a') as fp:
                 fp.write('\n'.join(','.join(str(v) for v in p)
-                                   for p in pose_history) + '\n')
-                pose_history = []
-        if len(pose_history1) % 10:
-            with open('/tmp/gazebo_exercise.txt', 'a') as fp:
-                fp.write('\n'.join(','.join(str(v) for v in p)
-                                   for p in pose_history1) + '\n')
-                pose_history = []
-        if len(pose_history2) % 10:
-            with open('/tmp/gazebo_exercise.txt', 'a') as fp:
-                fp.write('\n'.join(','.join(str(v) for v in p)
-                                   for p in pose_history2) + '\n')
-                pose_history2 = []
+                                   for p in self.pose_history) + '\n')
+                self.pose_history = []
+
+
+def run(args):
+    rospy.init_node('obstacle_avoidance')
+    # avoidance_method = globals()[args.mode]
+    
+    # Update control every 100 ms.
+    rate_limiter = rospy.Rate(100)
+    leader = Robot("tb3_0")
+    follower_1 = Robot("tb3_1")
+    follower_2 = Robot("tb3_2")
+    # Keep track of groundtruth position for plotting purposes.
+
+
+    while not rospy.is_shutdown():
+        # Make sure all measurements are ready.
+        leader.update_velocities(rate_limiter=rate_limiter)
+        follower_1.update_velocities(rate_limiter=rate_limiter)
+        follower_2.update_velocities(rate_limiter=rate_limiter)
+
         rate_limiter.sleep()
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Runs obstacle avoidance')
-    parser.add_argument('--mode', action='store', default='braitenberg',
-                        help='Method.', choices=['braitenberg', 'rule_based'])
-    args, unknown = parser.parse_known_args()
+    # parser = argparse.ArgumentParser(description='Runs obstacle avoidance')
+    # parser.add_argument('--mode', action='store', default='braitenberg',
+    #                     help='Method.', choices=['braitenberg', 'rule_based'])
+    # args, unknown = parser.parse_known_args()
+    args = None
     try:
         run(args)
     except rospy.ROSInterruptException:

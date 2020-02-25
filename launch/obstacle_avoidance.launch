@@ -1,7 +1,6 @@
 <launch>
-	<arg name="mode" />
 
-	<node pkg="multi_robot" type="obstacle_avoidance.py" name="obstacle_avoidance" args="--mode=$(arg mode)" output="screen"></node>
+	<node pkg="multi_robot" type="obstacle_avoidance.py" name="obstacle_avoidance" output="screen"></node>
 
 
 </launch>
