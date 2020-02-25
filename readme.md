@@ -1,7 +1,7 @@
 robots
 
 
-clone into `catkin_ws/src`
+clone with `git clone git@github.com:KarenSarmiento/RobotMiniProject.git multi_robot`
 
 ```
 source ~/catkin_ws/devel/setup.bash
