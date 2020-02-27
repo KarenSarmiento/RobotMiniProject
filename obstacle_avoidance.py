@@ -162,7 +162,6 @@ class Follower(Robot):
         ])
         
         # Get velocity for holonomic point.
-        # TODO: Rotate according to leader's yaw.
         rotated_desired_rel_pos = _rotate(self._desired_rel_pos[:-1], leader_pose[YAW])
         v = self.get_velocity_using_p(hol_point_pos, leader_pose[:-1] + rotated_desired_rel_pos)
         # print("Got vel: {}".format(v))
