@@ -7,7 +7,6 @@ from __future__ import print_function
 import argparse
 import numpy as np
 import rospy
-import follow_leader as fl
 
 # Robot motion commands:
 # http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html
@@ -164,11 +163,6 @@ class Follower(Robot):
         # Get velocity for holonomic point.
         rotated_desired_rel_pos = _rotate(self._desired_rel_pos[:-1], leader_pose[YAW])
         v = self.get_velocity_using_p(hol_point_pos, leader_pose[:-1] + rotated_desired_rel_pos)
-        # print("Got vel: {}".format(v))
-        # print("Distance: {}".format(np.linalg.norm(v)))
-        # print("Pose: {}".format(pose[:-1]))
-        # print("hol_point_pos: {}".format(hol_point_pos))
-        # print("Leader Pose: {}".format(leader_pose[:-1]))
 
         # Translate velocity to control inputs for non-holonomic robot.
         u, w = self.feedback_linearized(pose, v, self._epsilon)
