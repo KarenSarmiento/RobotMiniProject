@@ -9,6 +9,7 @@ git clone git@github.com:KarenSarmiento/RobotMiniProject.git multi_robot
 ```
 source ~/catkin_ws/devel/setup.bash
 roslaunch multi_robot gazebo_simple.launch
+roslaunch multi_robot slam.launch 
 python obstacle_avoidance.py
 ```
 
