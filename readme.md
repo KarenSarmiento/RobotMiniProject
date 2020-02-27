@@ -17,3 +17,8 @@ To list the topics being published to:
 ```
 rostopic list
 ```
+
+## Dependencies
+```
+sudo apt install ros-kinetic-multirobot-map-merge
+```
