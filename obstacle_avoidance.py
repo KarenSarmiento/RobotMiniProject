@@ -140,8 +140,6 @@ def run(args):
     leader = Robot("tb3_0")
     follower_1 = Robot("tb3_1")
     follower_2 = Robot("tb3_2")
-    # Keep track of groundtruth position for plotting purposes.
-
 
     while not rospy.is_shutdown():
         # Make sure all measurements are ready.
