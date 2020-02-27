@@ -121,6 +121,7 @@ class SLAM(object):
                 t = rospy.Time(0)
                 position, orientation = self._tf.lookupTransform(
                     '/' + a, '/' + b, t)
+                print(position, orientation)
                 self._pose[X] = position[X]
                 self._pose[Y] = position[Y]
                 _, _, self._pose[YAW] = euler_from_quaternion(orientation)
