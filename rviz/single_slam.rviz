@@ -10,7 +10,6 @@ Panels:
         - /RobotModel1
         - /RobotModel1/Links1
         - /TF1/Frames1
-        - /LaserScan1/Status1
         - /Map1
       Splitter Ratio: 0.594406009
     Tree Height: 376
@@ -193,6 +192,14 @@ Visualization Manager:
       Shaft Length: 0.100000001
       Topic: /tb3_0/path
       Unreliable: false
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /follow
+      Name: Marker
+      Namespaces:
+        "": true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:

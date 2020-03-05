@@ -9,6 +9,7 @@ import numpy as np
 import os
 import rospy
 import sys
+import math
 
 # Robot motion commands:
 # http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html
@@ -18,7 +19,7 @@ from nav_msgs.msg import OccupancyGrid
 # Position.
 from tf import TransformListener
 # Goal.
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped,Point
 # Path.
 from nav_msgs.msg import Path
 # For pose information.
@@ -27,6 +28,8 @@ from tf.transformations import euler_from_quaternion
 import laser_geometry.laser_geometry as lg
 # http://docs.ros.org/api/sensor_msgs/html/msg/LaserScan.html
 from sensor_msgs.msg import LaserScan
+from visualization_msgs.msg import Marker
+
 import sensor_msgs.point_cloud2 as pc2
 # Import the potential_field.py code rather than copy-pasting.
 directory = os.path.join(os.path.dirname(
@@ -130,14 +133,11 @@ class SLAM(object):
                 self._pose[X] = position[X]
                 self._pose[Y] = position[Y]
                 _, _, self._pose[YAW] = euler_from_quaternion(orientation)
-                print(self._pose)
-                print(self._occupancy_grid)
             except Exception as e:
                 print(e)
         else:
             print('Unable to find:', self._tf.frameExists(
                 a), self._tf.frameExists(b))
-        pass
 
     @property
     def ready(self):
@@ -223,7 +223,7 @@ class SimpleLaser(object):
         self._indices = None
         self._lp = lp
         self._point_gen = None
-
+        self._tf = TransformListener()
 
     def callback(self, msg):
         # print(msg)
@@ -236,12 +236,39 @@ class SimpleLaser(object):
             if a < b:
                 return a <= x and x <= b
             return a <= x or x <= b
-        pc2_msg = self._lp.projectLaser(msg)
-        self._point_gen = pc2.read_points(pc2_msg)
-        
+        # TODO: write a cpp file instead to use the "high fidelity conversion"
+        # https://answers.ros.org/question/11232/how-to-turn-laser-scan-to-point-cloud-map/
+        # pc2_msg = self._lp.projectLaser(msg)
+        # print(len(msg.ranges))
+        # self._points = np.array(list(pc2.read_points(pc2_msg)))
         self._angles = np.arange(
-            msg.angle_min, msg.angle_max, msg.angle_increment)
+            msg.angle_min, msg.angle_max + msg.angle_increment, msg.angle_increment)
+
+        # print("aaa",self._angles.shape, self._angles)
+        # angles are counterclockwise, 0/2pi is straight ahead
+        cone_left = np.pi/4
+        cone_right = np.pi/4
+        # limit field of view, only consider points close enough
+        cone = np.where((self._angles > (2*np.pi - cone_right)) | (self._angles < cone_left) | (self._measurements < 3))
         self._measurements = np.array(msg.ranges)
+
+        self.cone_measurements = self._measurements[cone]
+        self.cone_angles = self._angles[cone]
+        print(self._angles.shape, self._measurements.shape)
+
+        # print(np.column_stack((self.cone_angles,self.cone_measurements)))
+        points = []
+        # TODO: vectorize
+        # TODO: precalculate sin/cos for cone_angles and cache
+        for i in range(len(self.cone_measurements)):
+            if math.isnan(self.cone_measurements[i]) or math.isinf(self.cone_measurements[i]):
+                continue
+            theta = self.cone_angles[i]
+            r = self.cone_measurements[i]
+            points.append(np.array([r*np.cos(theta),r*np.sin(theta)]))
+        points = np.array(points)
+        # print(points)
+        self._points = points
         # print(msg, self._angles, sself._measurements)
         # Compute indices the first time.
         # if self._indices is None:
@@ -271,34 +298,79 @@ class SimpleLaser(object):
 
     @property
     def points(self):
-        return self._point_gen
+        return self._points
 
+    @property
+    def centroid(self):
+        sumx = 0.
+        sumy = 0.
+        num = 0
+        for point in self.points:
+            if not math.isnan(point[0]) and not math.isnan(point[1]):
+                sumx += point[0]
+                sumy += point[1]
+                num += 1
+        if num == 0:
+            print("No points in cloud, stopping")
+            return np.array([0,0])
+        relative_centroid = np.mean(self.points,axis=0)[X:Y+1]
+        print("centroid: ", relative_centroid)
+        return relative_centroid
+        # a = 'occupancy_grid'
+        # b = ROBOT_NAME+'/base_scan'
+        # if self._tf.frameExists(a) and self._tf.frameExists(b):
+        #     try:
+        #         t = rospy.Time(0)
+        #         trans, _ = self._tf.lookupTransform(
+        #             '/' + a, '/' + b, t)
+        #         print("t",trans)
+        #         translation = np.array([trans[X], trans[Y]])
+        #         print("translation ", translation)
+        #         # TODO: might need to rotate as well - use euler_from quaternion and rotate?    
+        #         centroid = np.array([sumx/num,-sumy/num]) + translation
+        #         print("c",np.array([sumx/num,-sumy/num]),";",centroid)
+        #         return centroid
+        #     except Exception as e:
+        #         print(e)
+        # else:
+        #     print('Unable to find:', self._tf.frameExists(
+        #         a), self._tf.frameExists(b))
+        #     return
 
 def get_follow_position(pose, laser):
-    cone = np.where((laser.angles > (7*np.pi/4)) | (laser.angles < (np.pi/4)))
-    cone_angles = laser.angles[cone]
-    cone_measures = laser.measurements[cone]
-    close = np.where(cone_measures < 2.5)
-    close_angles = cone_angles[close]
-    closest = np.argmin(cone_measures)
-    closest_dist = cone_measures[closest]
-    closest_angle = cone_angles[closest]
+    c = laser.centroid
+    # If we are at most 20cm away from the "legs", stop
+    print(np.linalg.norm(c), " away from centroid")
+    if np.linalg.norm(c) < 0.2:
+        print("close enough, stopping")
+        return np.array([0.,0.])
+    return laser.centroid
+    # cone = np.where((laser.angles > (7*np.pi/4)) | (laser.angles < (np.pi/4)))
+    # print("cone: ",cone)
+    # cone_angles = laser.angles[cone]
+    # cone_measures = laser.measurements[cone]
+    # close = np.where(cone_measures < 2.5)
+    # close_angles = cone_angles[close]
+    # closest = np.argmin(cone_measures)
+    # closest_dist = cone_measures[closest]
+    # closest_angle = cone_angles[closest]
 
-    x = pose[X] + closest_dist * np.cos(closest_angle)
-    y = pose[Y] + closest_dist * np.sin(closest_angle)
-    position = np.array([x, y])
-    print(position)
-    return position
+    # x = pose[X] + closest_dist * np.cos(closest_angle)
+    # y = pose[Y] + closest_dist * np.sin(closest_angle)
+    # position = np.array([x, y])
+    
+    # print("centroid: ",get_centroid(laser)," pose: ", pose)
 
 
 def run(args):
     rospy.init_node('rrt_navigation')
-
+    print("START")
     # Update control every 100 ms.
     rate_limiter = rospy.Rate(100)
     publisher = rospy.Publisher('/'+ROBOT_NAME+'/cmd_vel', Twist, queue_size=5)
-    path_publisher = rospy.Publisher(
-        '/'+ROBOT_NAME+'/path', Path, queue_size=1)
+    # path_publisher = rospy.Publisher(
+    #     '/'+ROBOT_NAME+'/path', Path, queue_size=1)
+    follow_point_publisher = rospy.Publisher('/follow', Marker, queue_size=1)
     slam = SLAM()
     goal = GoalPose()
     lp = lg.LaserProjection()
@@ -319,7 +391,7 @@ def run(args):
         publisher.publish(stop_msg)
         rate_limiter.sleep()
         i += 1
-
+    print("START2")
     while not rospy.is_shutdown():
         slam.update()
         current_time = rospy.Time.now().to_sec()
@@ -327,58 +399,89 @@ def run(args):
         # Get map and current position through SLAM:
         # > roslaunch exercises slam.launch
         print(goal.ready, slam.ready)
-        if not goal.ready or not slam.ready or not laser.ready:
+        if not slam.ready or not laser.ready:
             rate_limiter.sleep()
             continue
 
-        goal_reached = np.linalg.norm(slam.pose[:2] - goal.position) < .2
+        # goal_reached = np.linalg.norm(slam.pose[:2] - goal.position) < .2
+        # if goal_reached:
+        #     print("Goal Reached")
+        #     publisher.publish(stop_msg)
+        #     rate_limiter.sleep()
+        #     continue
+
+        # Follow path using feedback linearization.
+        position = np.array([
+            slam.pose[X] + EPSILON * np.cos(slam.pose[YAW]),
+            slam.pose[Y] + EPSILON * np.sin(slam.pose[YAW])], dtype=np.float32)
+        # v = get_velocity(position, np.array(current_path, dtype=np.float32))
+        # follow is relative to robot frame
+        follow = get_follow_position(position, laser)
+        
+        goal_reached = np.linalg.norm(follow) < .4
         if goal_reached:
             print("Goal Reached")
             publisher.publish(stop_msg)
             rate_limiter.sleep()
             continue
 
-        # Follow path using feedback linearization.
-        position = np.array([
-            slam.pose[X] + EPSILON * np.cos(slam.pose[YAW]),
-            slam.pose[Y] + EPSILON * np.sin(slam.pose[YAW])], dtype=np.float32)
-        print(position)
-        v = get_velocity(position, np.array(current_path, dtype=np.float32))
+        v = cap(0.2*follow, SPEED)
+        print("v: ", v)
         u, w = feedback_linearized(slam.pose, v, epsilon=EPSILON)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
         publisher.publish(vel_msg)
 
-        # Update plan every 1s.
-        time_since = current_time - previous_time
-        if current_path and time_since < 2.:
-            rate_limiter.sleep()
-            continue
-        previous_time = current_time
 
-        follow_position = get_follow_position(slam.pose, laser)
+        # publish point that is being followed 
+        marker = Marker()
+        marker.header.frame_id = "/tb3_0/base_link"
+        marker.type = marker.POINTS
+        marker.action = marker.ADD
+        marker.pose.orientation.w = 1
+        f = Point()
+        f.x = follow[X]
+        f.y = follow[Y]
+        marker.points = [f]
+        t = rospy.Duration()
+        marker.lifetime = t
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.1
+        marker.color.a = 1.0
+        marker.color.r = 1.0
+        follow_point_publisher.publish(marker)
+
+        # Update plan every 1s.
+
+        # time_since = current_time - previous_time
+        # if current_path and time_since < 2.:
+        #     rate_limiter.sleep()
+        #     continue
+        # previous_time = current_time
+
         # Run RRT.
-        start_node, final_node = rrt.rrt(
-            slam.pose, follow_position, slam.occupancy_grid)
-        current_path = get_path(final_node)
-        if not current_path:
-            print('Unable to reach goal position:', follow_position)
+        # start_node, final_node = rrt.rrt(
+        #     slam.pose, follow_position, slam.occupancy_grid)
+        # current_path = get_path(final_node)
+        # if not current_path:
+        #     print('Unable to reach goal position:', follow_position)
 
         # Publish path to RViz.
-        path_msg = Path()
-        path_msg.header.seq = frame_id
-        path_msg.header.stamp = rospy.Time.now()
-        path_msg.header.frame_id = 'map'
-        for u in current_path:
-            pose_msg = PoseStamped()
-            pose_msg.header.seq = frame_id
-            pose_msg.header.stamp = path_msg.header.stamp
-            pose_msg.header.frame_id = 'map'
-            pose_msg.pose.position.x = u[X]
-            pose_msg.pose.position.y = u[Y]
-            path_msg.poses.append(pose_msg)
-        path_publisher.publish(path_msg)
+        # path_msg = Path()
+        # path_msg.header.seq = frame_id
+        # path_msg.header.stamp = rospy.Time.now()
+        # path_msg.header.frame_id = 'map'
+        # for u in current_path:
+        #     pose_msg = PoseStamped()
+        #     pose_msg.header.seq = frame_id
+        #     pose_msg.header.stamp = path_msg.header.stamp
+        #     pose_msg.header.frame_id = 'map'
+        #     pose_msg.pose.position.x = u[X]
+        #     pose_msg.pose.position.y = u[Y]
+        #     path_msg.poses.append(pose_msg)
+        # path_publisher.publish(path_msg)
 
         rate_limiter.sleep()
         frame_id += 1
