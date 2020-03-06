@@ -10,7 +10,8 @@ import os
 import rospy
 import sys
 import math
-
+from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
+from sklearn.metrics import pairwise_distances
 # Robot motion commands:
 # http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html
 from geometry_msgs.msg import Twist
@@ -91,7 +92,6 @@ def get_velocity(position, path_points):
     # MISSING: Return the velocity needed to follow the
     # path defined by path_points. Assume holonomicity of the
     # point located at position.
-    print(i, v, d)
     return cap(dir*np.sqrt(mag), max_speed=SPEED)
 
 
@@ -224,6 +224,7 @@ class SimpleLaser(object):
         self._lp = lp
         self._point_gen = None
         self._tf = TransformListener()
+        self._points=None
 
     def callback(self, msg):
         # print(msg)
@@ -254,19 +255,24 @@ class SimpleLaser(object):
 
         self.cone_measurements = self._measurements[cone]
         self.cone_angles = self._angles[cone]
-        print(self._angles.shape, self._measurements.shape)
 
         # print(np.column_stack((self.cone_angles,self.cone_measurements)))
-        points = []
-        # TODO: vectorize
         # TODO: precalculate sin/cos for cone_angles and cache
-        for i in range(len(self.cone_measurements)):
-            if math.isnan(self.cone_measurements[i]) or math.isinf(self.cone_measurements[i]):
-                continue
-            theta = self.cone_angles[i]
-            r = self.cone_measurements[i]
-            points.append(np.array([r*np.cos(theta),r*np.sin(theta)]))
-        points = np.array(points)
+        f = np.isfinite(self.cone_measurements)
+        angles = np.transpose(np.vstack((np.cos(self.cone_angles[f]),np.sin(self.cone_angles[f]))))
+        # points is array of points, shape (n,2), [[x1,y1],[x2,y2] ...]
+        points = np.array([self.cone_measurements[f]]).transpose() * angles
+        # print(points)
+
+        # points = []
+
+        # for i in range(len(self.cone_measurements)):
+        #     if math.isnan(self.cone_measurements[i]) or math.isinf(self.cone_measurements[i]):
+        #         continue
+        #     theta = self.cone_angles[i]
+        #     r = self.cone_measurements[i]
+        #     points.append(np.array([r*np.cos(theta),r*np.sin(theta)]))
+        # points = np.array(points)
         # print(points)
         self._points = points
         # print(msg, self._angles, sself._measurements)
@@ -302,20 +308,56 @@ class SimpleLaser(object):
 
     @property
     def centroid(self):
-        sumx = 0.
-        sumy = 0.
-        num = 0
-        for point in self.points:
-            if not math.isnan(point[0]) and not math.isnan(point[1]):
-                sumx += point[0]
-                sumy += point[1]
-                num += 1
-        if num == 0:
+        # sumx = 0.
+        # sumy = 0.
+        # num = 0
+        # for point in self.points:
+        #     if not math.isnan(point[0]) and not math.isnan(point[1]):
+        #         sumx += point[0]
+        #         sumy += point[1]
+        #         num += 1
+        # if num == 0:
+        #     print("No points in cloud, stopping")
+        #     return np.array([0,0])
+        if len(self.points) == 0:
             print("No points in cloud, stopping")
             return np.array([0,0])
+
         relative_centroid = np.mean(self.points,axis=0)[X:Y+1]
         print("centroid: ", relative_centroid)
-        return relative_centroid
+
+        # Clustering
+        km = KMeans(n_clusters=5).fit(self.points)
+        print(km.cluster_centers_)
+        db = DBSCAN(eps=0.1, metric='euclidean')
+        db.fit(self.points)
+        print("conponents:",db.components_)
+        print("labels:",db.labels_)
+        print(db.labels_.shape,self.points.shape, db.components_.shape)
+        lab = db.labels_
+        clusters = []
+        for i in range(0, np.max(lab)+1):
+            a = self.points[np.nonzero(lab == i)]
+            clusters.append(a)
+        clusters = np.array(clusters)
+        # TODO: publish all these detected clusters on some other marker
+        centroids = np.array([get_centroid(ps) for ps in clusters])
+        print("c", centroids)
+        # ac = AgglomerativeClustering(n_clusters=None, dist)
+        # print(ac.cluster_centers_)
+        if len(centroids) == 0:
+            return np.array([0.,0.])
+        if len(centroids) == 1:
+            return centroids[0]
+        else:
+            pd = pairwise_distances(centroids)
+            # get first index of the minimum non-zero distance
+            i = np.argwhere(pd==np.min(pd[(pd>0.)]))[0]
+            # take two centroids that are closest together - these are legs
+            c1 = centroids[i[0]]
+            c2 = centroids[i[1]]
+            c3 = (c1+c2)/2
+            return c3
         # a = 'occupancy_grid'
         # b = ROBOT_NAME+'/base_scan'
         # if self._tf.frameExists(a) and self._tf.frameExists(b):
@@ -336,6 +378,8 @@ class SimpleLaser(object):
         #     print('Unable to find:', self._tf.frameExists(
         #         a), self._tf.frameExists(b))
         #     return
+def get_centroid(points):
+    return np.mean(points,axis=0)[X:Y+1]
 
 def get_follow_position(pose, laser):
     c = laser.centroid
@@ -398,7 +442,6 @@ def run(args):
         # Make sure all measurements are ready.
         # Get map and current position through SLAM:
         # > roslaunch exercises slam.launch
-        print(goal.ready, slam.ready)
         if not slam.ready or not laser.ready:
             rate_limiter.sleep()
             continue
