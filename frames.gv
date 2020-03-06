@@ -1,0 +1,22 @@
+digraph G {
+"tb3_0/base_footprint" -> "tb3_0/base_link"[label="Broadcaster: /tb3_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1583504167.832 sec old)\nBuffer length: 0.000 sec\n"];
+"tb3_0/base_link" -> "tb3_0/caster_back_link"[label="Broadcaster: /tb3_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1583504167.832 sec old)\nBuffer length: 0.000 sec\n"];
+"tb3_0/base_link" -> "tb3_0/imu_link"[label="Broadcaster: /tb3_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1583504167.832 sec old)\nBuffer length: 0.000 sec\n"];
+"tb3_0/base_link" -> "tb3_0/base_scan"[label="Broadcaster: /tb3_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1583504167.832 sec old)\nBuffer length: 0.000 sec\n"];
+"tb3_0/map" -> "tb3_0/odom"[label="Broadcaster: /tb3_0/turtlebot3_slam_gmapping\nAverage rate: 20.202 Hz\nMost recent transform: 1583504167.852 ( -0.019 sec old)\nBuffer length: 4.950 sec\n"];
+"map" -> "tb3_0/map"[label="Broadcaster: /world_to_tb3_0_tf_broadcaster\nAverage rate: 10.187 Hz\nMost recent transform: 1583504167.850 ( -0.018 sec old)\nBuffer length: 4.810 sec\n"];
+"tb3_0/map" -> "occupancy_grid"[label="Broadcaster: /map_broadcaster\nAverage rate: 10.188 Hz\nMost recent transform: 1583504167.931 ( -0.098 sec old)\nBuffer length: 4.908 sec\n"];
+"odom" -> "base_footprint"[label="Broadcaster: /turtlebot3_core\nAverage rate: 29.597 Hz\nMost recent transform: 1583504165.681 ( 2.151 sec old)\nBuffer length: 4.899 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1583504167.832"[ shape=plaintext ] ;
+ }->"tb3_0/base_footprint";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1583504167.832"[ shape=plaintext ] ;
+ }->"odom";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1583504167.832"[ shape=plaintext ] ;
+ }->"map";
+}

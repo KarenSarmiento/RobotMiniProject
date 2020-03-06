@@ -10,23 +10,26 @@
   <arg name="first_tb3"  default="tb3_0"/>
   <arg name="second_tb3" default="tb3_1"/>
   <arg name="third_tb3"  default="tb3_2"/>
-  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
-    <param name="publish_frequency" type="double" value="50.0" />
-    <param name="tf_prefix" value=""/>
-  </node>
+  <arg name="robot_ns" default="tb3_0"/>
+  
 
   <include file="$(find turtlebot3_bringup)/launch/includes/description.launch.xml">
     <arg name="model" value="$(arg model)" />
   </include>
+  <group ns="$(arg robot_ns)">
+    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen">
+      <param name="publish_frequency" type="double" value="50.0" />
+      <param name="tf_prefix" value="$(arg robot_ns)" />
+    </node>
+  </group>
 
-  <node pkg="tf" type="static_transform_publisher" name="map_broadcaster" args="0 0 0 0 0 0 /tb3_0/map occupancy_grid 100" />
-  <node pkg="tf" type="static_transform_publisher" name="map_broadcaster1" args="0 0 0 0 0 0 /tb3_0/map map 100" />
+  <node pkg="tf" type="static_transform_publisher" name="map_broadcaster" args="0 0 0 0 0 0 /$(arg robot_ns)/map occupancy_grid 100" />
 
   <!-- SLAM: Gmapping -->
-  <node pkg="gmapping" type="slam_gmapping" name="turtlebot3_slam_gmapping" output="screen" ns="tb3_0">
-    <param name="base_frame" value="tb3_0/$(arg set_base_frame)"/>
-    <param name="odom_frame" value="tb3_0/$(arg set_odom_frame)"/>
-    <param name="map_frame"  value="tb3_0/$(arg set_map_frame)"/>
+  <node pkg="gmapping" type="slam_gmapping" name="turtlebot3_slam_gmapping" output="screen" ns="$(arg robot_ns)">
+    <param name="base_frame" value="$(arg robot_ns)/$(arg set_base_frame)"/>
+    <param name="odom_frame" value="$(arg robot_ns)/$(arg set_odom_frame)"/>
+    <param name="map_frame"  value="$(arg robot_ns)/$(arg set_map_frame)"/>
     <param name="map_update_interval" value="2.0"/>
     <param name="maxUrange" value="3.0"/>
     <param name="sigma" value="0.05"/>
@@ -57,7 +60,7 @@
     <param name="lasamplerange" value="0.005"/>
     <param name="lasamplestep" value="0.005"/>
   </node>
-  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg second_tb3)_tf_broadcaster" args="0 0 0 0 0 0 /map /$(arg second_tb3)/map 100"/>
+  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg robot_ns)_tf_broadcaster" args="0 0 0 0 0 0 /map /$(arg robot_ns)/map 100"/>
 
   <!-- rviz -->
   <group if="$(arg open_rviz)"> 
