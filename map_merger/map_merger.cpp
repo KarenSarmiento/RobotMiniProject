@@ -467,8 +467,8 @@ nav_msgs::OccupancyGrid merge_maps_transformed(
   {
     for (int i = 0; i < merged.info.width; i++)
     {
-      map0_x = get_x(map0, i, j);
-      map0_y = get_y(map0, i, j);
+      map0_x = get_x(merged, i, j);
+      map0_y = get_y(merged, i, j);
       if (in_grid(map0, map0_x, map0_y)
           && (get_value(map0, map0_x, map0_y) != -1))
       {
