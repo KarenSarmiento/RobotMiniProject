@@ -312,7 +312,9 @@ double score_transform(nav_msgs::OccupancyGrid& map0, nav_msgs::OccupancyGrid& m
           + get_y(map1, i, j) * cos(transform.theta)) + transform.y;
 
       // Only count the value if it's in the maps' overlapping portion
-      if (in_grid(map0, map1_tr_x, map1_tr_y))
+      // and isn't unknown
+      if (in_grid(map0, map1_tr_x, map1_tr_y)
+          && !(get_value(map0, map1_tr_x, map1_tr_y) == -1))
       {
         map0_occ = is_occupied_ind(map0, get_i(map0, map1_tr_x, map1_tr_y),
             get_j(map0, map1_tr_x, map1_tr_y));
@@ -662,6 +664,7 @@ void tb3_map_callback(const nav_msgs::OccupancyGrid::ConstPtr& map,
   // Copy to map array
   robot_maps[tb3_no] = *map;
   recved_map_flags |= (1 << tb3_no);
+
   if (recved_map_flags == (TB3_0_MASK | TB3_1_MASK | TB3_2_MASK))
   {
     // Bit heavyweight - TODO don't call directly (but much sync)
