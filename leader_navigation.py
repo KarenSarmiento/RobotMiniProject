@@ -10,6 +10,8 @@ import os
 import rospy
 import sys
 
+import matplotlib.pylab as plt
+
 # Robot motion commands:
 # http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html
 from geometry_msgs.msg import Twist
@@ -82,7 +84,7 @@ def get_velocity(position, path_points):
     # MISSING: Return the velocity needed to follow the
     # path defined by path_points. Assume holonomicity of the
     # point located at position.
-    print(i, v, d)
+    # print(i, v, d)
     return cap(dir*np.sqrt(mag), max_speed=SPEED)
 
 
@@ -121,7 +123,7 @@ class SLAM(object):
                 t = rospy.Time(0)
                 position, orientation = self._tf.lookupTransform(
                     '/' + a, '/' + b, t)
-                print(position, orientation)
+                # print(position, orientation)
                 self._pose[X] = position[X]
                 self._pose[Y] = position[Y]
                 _, _, self._pose[YAW] = euler_from_quaternion(orientation)
@@ -252,7 +254,16 @@ def run(args):
         position = np.array([
             slam.pose[X] + EPSILON * np.cos(slam.pose[YAW]),
             slam.pose[Y] + EPSILON * np.sin(slam.pose[YAW])], dtype=np.float32)
+        print(slam.occupancy_grid.is_occupied(position))
+        print(slam.occupancy_grid.is_free(position))
+        print("robot position: ", position)
+        print(np.argwhere(slam.occupancy_grid._values == 0))
+        print((np.argwhere(slam.occupancy_grid._values == 0)[0]))
+        print(slam.occupancy_grid.get_position(*np.argwhere(slam.occupancy_grid._values == 0)[0]))
+        print(slam.occupancy_grid.get_position(*np.argwhere(slam.occupancy_grid._values == 0)[-1]))
         v = get_velocity(position, np.array(current_path, dtype=np.float32))
+        slam.occupancy_grid.draw()
+        plt.show()
         u, w = feedback_linearized(slam.pose, v, epsilon=EPSILON)
         vel_msg = Twist()
         vel_msg.linear.x = u
@@ -269,6 +280,7 @@ def run(args):
         # Run RRT.
         start_node, final_node = rrt.rrt(
             slam.pose, goal.position, slam.occupancy_grid)
+        print(final_node)
         current_path = get_path(final_node)
         if not current_path:
             print('Unable to reach goal position:', goal.position)

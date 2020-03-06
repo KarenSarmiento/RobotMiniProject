@@ -67,7 +67,7 @@ def adjust_pose(node, final_position, occupancy_grid):
     #     return None
 
     if not check_arc(node, final_node, occupancy_grid):
-        print("failed check_arc")
+        print("failed check_arc", node.position, " -> ",final_node.position)
         return None
     return final_node
 

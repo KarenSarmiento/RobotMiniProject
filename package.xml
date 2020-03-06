@@ -22,6 +22,7 @@
   <depend>teleop_twist_joy</depend>
   <depend>teleop_twist_keyboard</depend>
   <depend>laser_proc</depend>
+  <depend>laser_geometry</depend>
   <depend>rgbd_launch</depend>
   <depend>depthimage_to_laserscan</depend>
   <depend>rosserial_arduino</depend>
