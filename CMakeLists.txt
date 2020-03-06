@@ -10,6 +10,10 @@ project(multi_robot)
 find_package(catkin REQUIRED COMPONENTS
   gazebo_ros
   rospy
+  roscpp
+  std_msgs
+  nav_msgs
+  geometry_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -67,10 +71,12 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+ generate_messages(
+    DEPENDENCIES
+    std_msgs  # Or other packages containing msgs
+    nav_msgs
+    geometry_msgs
+ )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -133,6 +139,8 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/multi_robot_node.cpp)
+add_executable(map_merger map_merger/map_merger.cpp)
+target_link_libraries(map_merger ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

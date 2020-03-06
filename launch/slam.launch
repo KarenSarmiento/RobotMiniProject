@@ -116,7 +116,9 @@
     <param name="lasamplerange" value="0.005"/>
     <param name="lasamplestep" value="0.005"/>
   </node>
-  <node pkg="multirobot_map_merge" type="map_merge" respawn="false" name="map_merge" output="screen">
+
+  <!-- Disable map merge for now -->
+  <!--<node pkg="multirobot_map_merge" type="map_merge" respawn="false" name="map_merge" output="screen">
     <param name="robot_map_topic" value="map"/>
     <param name="robot_namespace" value="tb3"/>
     <param name="merged_map_topic" value="map"/>
@@ -126,7 +128,7 @@
     <param name="discovery_rate" value="0.05"/>
     <param name="estimation_rate" value="0.1"/>
     <param name="estimation_confidence" value="1.0"/>
-  </node>
+  </node>-->
 
   <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg first_tb3)_tf_broadcaster"  args="0 0 0 0 0 0 /map /$(arg first_tb3)/map 100"/>
   <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg second_tb3)_tf_broadcaster" args="0 0 0 0 0 0 /map /$(arg second_tb3)/map 100"/>
