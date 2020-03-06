@@ -215,8 +215,8 @@ def run(args):
     # Update control every 100 ms.
     rate_limiter = rospy.Rate(100)
 
-    leader = Leader("tb3_1")
-    follower_1 = Follower("tb3_0", desired_rel_pos=np.array([0.0, 0.25, 0.0]))
+    leader = Leader("tb3_0")
+    follower_1 = Follower("tb3_1", desired_rel_pos=np.array([0.0, 0.25, 0.0]))
     follower_2 = Follower("tb3_2", desired_rel_pos=np.array([0.0, -0.25, 0.0]))
 
     while not rospy.is_shutdown():
