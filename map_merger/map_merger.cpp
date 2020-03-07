@@ -3,10 +3,12 @@
 
 #include <pthread.h>
 #include <math.h>
+#include <unistd.h>
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "nav_msgs/OccupancyGrid.h"
+#include "tf/transform_broadcaster.h"
 
 #define TB3_0_MASK (1 << 0)
 #define TB3_1_MASK (1 << 1)
@@ -66,7 +68,13 @@ static bool is_occupied(nav_msgs::OccupancyGrid& map,
   return (map.data[j * map.info.width + i] >= 50);
 }
 
-static int8_t get_value(nav_msgs::OccupancyGrid map,
+static int8_t get_value_ind(nav_msgs::OccupancyGrid& map,
+    int i, int j)
+{
+  return (map.data[j * map.info.width + i]);
+}
+
+static int8_t get_value(nav_msgs::OccupancyGrid& map,
     double x, double y)
 {
   int i, j;
@@ -164,7 +172,7 @@ void hough_lines(std::vector<line>& lines,
   {
     for (int j = 0; j < radius_len; j++)
     {
-      if (bins[i * radius_len + j] >= 10)
+      if (bins[i * radius_len + j] >= 5)
       {
         ln.theta = i * theta_res;
         ln.radius = j * radius_res;
@@ -294,6 +302,32 @@ bool compare_theta(grid_transform g1, grid_transform g2)
   return (g1.theta < g2.theta);
 }
 
+double transform_x(double x, double y, grid_transform transform)
+{
+  return x * cos(transform.theta) - y * sin(transform.theta)
+      + transform.x;
+}
+
+double transform_y(double x, double y, grid_transform transform)
+{
+  return y * cos(transform.theta) + x * sin(transform.theta)
+      + transform.y;
+}
+
+double reverse_transform_x(double x, double y,
+    grid_transform transform)
+{
+  return (x - transform.x) * cos(-transform.theta)
+      - (y - transform.y) * sin(-transform.theta);
+}
+
+double reverse_transform_y(double x, double y,
+    grid_transform transform)
+{
+  return (y - transform.y) * cos(-transform.theta)
+      + (x - transform.x) * sin(-transform.theta);
+}
+
 double score_transform(nav_msgs::OccupancyGrid& map0, nav_msgs::OccupancyGrid& map1, grid_transform transform)
 {
   double correct = 0.0, incorrect = 0.0;
@@ -304,32 +338,41 @@ double score_transform(nav_msgs::OccupancyGrid& map0, nav_msgs::OccupancyGrid& m
   {
     for (int i = 0; i < map1.info.width; i++)
     {
-      map1_occ = is_occupied_ind(map1, i, j);
-      // Transform the (x, y) by map1's transform
-      map1_tr_x = (get_x(map1, i, j) * cos(transform.theta)
-          - get_y(map1, i, j) * sin(transform.theta)) + transform.x;
-      map1_tr_y = (get_x(map1, i, j) * sin(transform.theta)
-          + get_y(map1, i, j) * cos(transform.theta)) + transform.y;
-
-      // Only count the value if it's in the maps' overlapping portion
-      // and isn't unknown
-      if (in_grid(map0, map1_tr_x, map1_tr_y)
-          && !(get_value(map0, map1_tr_x, map1_tr_y) == -1))
+      if (get_value_ind(map1, i, j) != -1)
       {
-        map0_occ = is_occupied_ind(map0, get_i(map0, map1_tr_x, map1_tr_y),
-            get_j(map0, map1_tr_x, map1_tr_y));
-        if (map0_occ == map1_occ)
+        map1_occ = is_occupied_ind(map1, i, j);
+        // Transform the (x, y) by map1's transform
+        map1_tr_x = transform_x(get_x(map1, i, j),
+            get_y(map1, i, j), transform);
+        map1_tr_y = transform_y(get_x(map1, i, j),
+            get_y(map1, i, j), transform);
+        //(get_x(map1, i, j) * cos(transform.theta)
+        //    - get_y(map1, i, j) * sin(transform.theta)) + transform.x;
+        //map1_tr_y = (get_x(map1, i, j) * sin(transform.theta)
+        //    + get_y(map1, i, j) * cos(transform.theta)) + transform.y;
+
+        // Only count the value if it's in the maps' overlapping portion
+        // and isn't unknown
+        if (in_grid(map0, map1_tr_x, map1_tr_y)
+            && (get_value(map0, map1_tr_x, map1_tr_y) != -1))
         {
-          correct += 1.0;
-        }
-        else
-        {
-          incorrect += 1.0;
+          map0_occ = is_occupied(map0, map1_tr_x, map1_tr_y);
+
+          if (map0_occ == map1_occ)
+          {
+            correct += 1.0;
+          }
+          else
+          {
+            incorrect += 1.0;
+          }
         }
       }
     }
   }
-
+  // Smoothing
+  correct += 3.0;
+  incorrect += 3.0;
   score = (correct / (correct + incorrect));
 
   return score;
@@ -357,31 +400,6 @@ double min_val(std::vector<double>& values)
   return min;
 }
 
-double transform_x(double x, double y, grid_transform transform)
-{
-  return x * cos(transform.theta) - y * sin(transform.theta)
-      + transform.x;
-}
-
-double transform_y(double x, double y, grid_transform transform)
-{
-  return y * cos(transform.theta) + x * sin(transform.theta)
-      + transform.y;
-}
-
-double reverse_transform_x(double x, double y,
-    grid_transform transform)
-{
-  return (x - transform.x) * cos(-transform.theta)
-      - (y - transform.y) * sin(-transform.theta);
-}
-
-double reverse_transform_y(double x, double y,
-    grid_transform transform)
-{
-  return (y - transform.y) * cos(-transform.theta)
-      + (x - transform.x) * sin(-transform.theta);
-}
 
 nav_msgs::OccupancyGrid merge_maps_transformed(
     nav_msgs::OccupancyGrid& map0,
@@ -543,6 +561,7 @@ grid_transform find_transform(nav_msgs::OccupancyGrid map0,
       transform.y = (lines[0][i].radius - lines[1][i].radius)
           * sin(lines[0][i].theta);
 
+
       // Slide the segment along the line to centre-match them
       slide_dist = (lines[0][i].start
           + 0.5*(lines[0][i].len - lines[1][i].len))
@@ -550,8 +569,12 @@ grid_transform find_transform(nav_msgs::OccupancyGrid map0,
       transform.x += slide_dist * line0_unit_x;
       transform.y += slide_dist * line0_unit_y;
 
-      // Add it to the heap
-      possible_transforms.push_back(transform);
+      // Hackery
+      if (transform.theta < 65536.0 && transform.theta > -65536.0)
+      {
+        // Add it to the heap
+        possible_transforms.push_back(transform);
+      }
 
       // For every line, there are 2 possible transforms
       // - one is pi radians out from the other.
@@ -572,8 +595,12 @@ grid_transform find_transform(nav_msgs::OccupancyGrid map0,
           + lines[1][i].start + lines[1][i].len;
       transform.x += slide_dist * line0_unit_x;
       transform.y += slide_dist * line0_unit_y;
-      
-      possible_transforms.push_back(transform);
+
+      // Hackery
+      if (transform.theta < 65536.0 && transform.theta > -65536.0)
+      {
+        possible_transforms.push_back(transform);
+      }
     }
   }
 
@@ -581,9 +608,15 @@ grid_transform find_transform(nav_msgs::OccupancyGrid map0,
   for (int i = 0; i < possible_transforms.size(); i++)
   {
     while (possible_transforms[i].theta < 0)
+    {
+      //printf("theta = %lf\n", possible_transforms[i].theta);
       possible_transforms[i].theta += 2.0*M_PI;
+    }
     while (possible_transforms[i].theta >= 2.0*M_PI)
+    {
+      //printf("theta = %lf\n", possible_transforms[i].theta);
       possible_transforms[i].theta -= 2.0*M_PI;
+    }
   }
 
   // Remove duplicates (~) from possible_transforms
@@ -612,7 +645,7 @@ grid_transform find_transform(nav_msgs::OccupancyGrid map0,
   possible_transforms = deduped;
   for (int i = 0; i < possible_transforms.size(); i++)
   {
-      printf("(%lf, %lf, %lf)\n", possible_transforms[i].theta,
+      printf("%d: (%lf, %lf, %lf)\n", i, possible_transforms[i].theta,
           possible_transforms[i].x, possible_transforms[i].y);
   }
 
@@ -635,26 +668,60 @@ grid_transform find_transform(nav_msgs::OccupancyGrid map0,
 
 void merge_maps_and_publish(ros::Publisher p)
 {
+  static tf::TransformBroadcaster b;
+  tf::Transform map0_transform, map1_transform, map2_transform;
+
   ROS_INFO("MERGING...\n");
 
+  // Get map incoming time
+  ros::Time map_time = ros::Time::now();
+
+  // Create zero-transform for tb3_0
+  map0_transform.setOrigin(
+      tf::Vector3(0.0, 0.0, 0.0));
+  map0_transform.setRotation(
+      tf::Quaternion(0.0, 0.0, 0.0));
+
+  // Find transform of tb3_1 map
   grid_transform transform =
       find_transform(robot_maps[0], robot_maps[1]);
-  // TODO transform highest scoring map and build new map
+  // Create tf transform for tb3_1
+  map1_transform.setOrigin(
+      tf::Vector3(-transform.x, -transform.y, 0.0));
+  map1_transform.setRotation(
+      tf::Quaternion(0.0, 0.0, -transform.theta));
 
+  // Merge maps of tb3_0 and tb3_1
   nav_msgs::OccupancyGrid merged_map =
       merge_maps_transformed(robot_maps[0],
           robot_maps[1],
           transform);
 
+  // Find transform of tb3_2 relative to tb3_0
+  // (and the merged map so far)
   transform = find_transform(merged_map, robot_maps[2]);
+  // Create tf transform for tb3_2
+  map2_transform.setOrigin(
+      tf::Vector3(-transform.x, -transform.y, 0.0));
+  map2_transform.setRotation(
+      tf::Quaternion(0.0, 0.0, -transform.theta));
 
+  // Merge tb3_2 map with merged tb3_[0-1] maps
   nav_msgs::OccupancyGrid merged_map2 =
       merge_maps_transformed(merged_map,
           robot_maps[2],
           transform);
 
+  // Publish map
   p.publish(merged_map2);
 
+  // Broadcast the tf transforms
+  b.sendTransform(tf::StampedTransform(map0_transform,
+      map_time, "map", "tb3_0/map"));
+  b.sendTransform(tf::StampedTransform(map1_transform,
+      map_time, "map", "tb3_1/map"));
+  b.sendTransform(tf::StampedTransform(map2_transform,
+      map_time, "map", "tb3_2/map"));
 }
 
 void tb3_map_callback(const nav_msgs::OccupancyGrid::ConstPtr& map,
@@ -699,7 +766,6 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   merged_publisher = n.advertise<nav_msgs::OccupancyGrid>("merged_map", 20);
 
-  ros::Rate pub_rate(10);
   int count = 0;
   std_msgs::String msg;
   std::stringstream ss;
@@ -736,7 +802,6 @@ int main(int argc, char **argv)
 
     ros::spinOnce();
 
-    pub_rate.sleep();
     count++;
   }
 
