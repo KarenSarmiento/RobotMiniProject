@@ -1,6 +1,0 @@
-<launch>
-	<node pkg="multi_robot" type="leader_nav.py" name="leader" output="screen"></node>
-	<node pkg="multi_robot" type="follower_nav.py" name="leader" output="screen"></node>
-	<node pkg="multi_robot" type="formation.py" name="leader" output="screen"></node>
-	
-</launch>
