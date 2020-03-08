@@ -30,7 +30,7 @@ import laser_geometry.laser_geometry as lg
 # http://docs.ros.org/api/sensor_msgs/html/msg/LaserScan.html
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker
-
+from pykalman import KalmanFilter
 import sensor_msgs.point_cloud2 as pc2
 # Import the potential_field.py code rather than copy-pasting.
 directory = os.path.join(os.path.dirname(
@@ -228,9 +228,12 @@ class SimpleLaser(object):
         self._point_gen = None
         self._tf = TransformListener()
         self._points = None
+        self.centroids = None
+        self.kf = None
+        self.cluster_map = {}
+        self.next_id = 0
 
     def callback(self, msg):
-        # print(msg)
         # Helper for angles.
         def _within(x, a, b):
             pi2 = np.pi * 2.
@@ -240,15 +243,9 @@ class SimpleLaser(object):
             if a < b:
                 return a <= x and x <= b
             return a <= x or x <= b
-        # TODO: write a cpp file instead to use the "high fidelity conversion"
-        # https://answers.ros.org/question/11232/how-to-turn-laser-scan-to-point-cloud-map/
-        # pc2_msg = self._lp.projectLaser(msg)
-        # print(len(msg.ranges))
-        # self._points = np.array(list(pc2.read_points(pc2_msg)))
         self._angles = np.arange(
             msg.angle_min, msg.angle_max + msg.angle_increment, msg.angle_increment)
 
-        # print("aaa",self._angles.shape, self._angles)
         # angles are counterclockwise, 0/2pi is straight ahead
         cone_left = np.pi/3
         cone_right = np.pi/3
@@ -259,43 +256,13 @@ class SimpleLaser(object):
 
         self.cone_measurements = self._measurements[cone]
         self.cone_angles = self._angles[cone]
-        # print(self.cone_measurements.shape, self.cone_angles.shape)
-        # print(cone)
-
-        # print(np.column_stack((self.cone_angles,self.cone_measurements)))
         # TODO: precalculate sin/cos for cone_angles and cache
         f = np.isfinite(self.cone_measurements)
         angles = np.transpose(
             np.vstack((np.cos(self.cone_angles[f]), np.sin(self.cone_angles[f]))))
         # points is array of points, shape (n,2), [[x1,y1],[x2,y2] ...]
         points = np.array([self.cone_measurements[f]]).transpose() * angles
-        # print(points)
-
-        # points = []
-
-        # for i in range(len(self.cone_measurements)):
-        #     if math.isnan(self.cone_measurements[i]) or math.isinf(self.cone_measurements[i]):
-        #         continue
-        #     theta = self.cone_angles[i]
-        #     r = self.cone_measurements[i]
-        #     points.append(np.array([r*np.cos(theta),r*np.sin(theta)]))
-        # points = np.array(points)
-        # print(points)
         self._points = points
-        # print(msg, self._angles, sself._measurements)
-        # Compute indices the first time.
-        # if self._indices is None:
-        #     self._indices = [[] for _ in range(len(self._angles))]
-        #     for i, d in enumerate(msg.ranges):
-        #         angle = msg.angle_min + i * msg.angle_increment
-        #         for j, center_angle in enumerate(self._angles):
-        #             if _within(angle, center_angle - self._width / 2., center_angle + self._width / 2.):
-        #                 self._indices[j].append(i)
-
-        # ranges = np.array(msg.ranges)
-        # for i, idx in enumerate(self._indices):
-        # We do not take the minimum range of the cone but the 10-th percentile for robustness.
-        # self._measurements[i] = np.percentile(ranges[idx], 10)
 
     @property
     def ready(self):
@@ -314,33 +281,23 @@ class SimpleLaser(object):
         return self._points
 
     @property
-    def centroid(self):
-        # sumx = 0.
-        # sumy = 0.
-        # num = 0
-        # for point in self.points:
-        #     if not math.isnan(point[0]) and not math.isnan(point[1]):
-        #         sumx += point[0]
-        #         sumy += point[1]
-        #         num += 1
-        # if num == 0:
-        #     print("No points in cloud, stopping")
-        #     return np.array([0,0])
+    def centroid(self, position):
         if len(self.points) == 0:
             print("No points in cloud, stopping")
             return np.array([0, 0])
-
+        
+        # Simple centroid - not using
         relative_centroid = np.mean(self.points, axis=0)[X:Y+1]
-        # print("centroid: ", relative_centroid)
+        
+        # Will be None on the first step since we have no centroids
+        self.last_centroids = self.centroids
+
+
 
         # Clustering
         current_points = self.points.copy()
-        # km = KMeans(n_clusters=5).fit(current_points)
-        # print(km.cluster_centers_)
         # Assume 10cm diameter legs
-        db = DBSCAN(eps=0.1, metric='euclidean')
-        db.fit(current_points)
-
+        db = DBSCAN(eps=0.1, metric='euclidean').fit(current_points)
         lab = db.labels_
         clusters = []
         # Sometimes happens - i think points updates while this function runs sometimes?
@@ -351,10 +308,44 @@ class SimpleLaser(object):
             a = current_points[np.nonzero(lab == i)]
             clusters.append(a)
         clusters = np.array(clusters)
+
+        
         # TODO: publish all these detected clusters on some other marker
         centroids = np.array([get_centroid(ps) for ps in clusters])
-        # ac = AgglomerativeClustering(n_clusters=None, dist)
-        # print(ac.cluster_centers_)
+        # publish_points("/centroids", centroids)
+        
+        # offset by slam.position to get coordinate in slam frame
+        # TODO: do a tf transform instead?
+        self.centroids = np.array([c + position for c in centroids])
+        
+        
+        self.kalman_predict_centroids = [] # some function of the last centroids
+
+
+        for c in self.centroids:
+            min = float('inf')
+            i_min = 0
+            # get closest centroid to prediction
+            for i,x in enumerate(self.kalman_predict_centroids):
+                d = np.abs(np.linalg.norm(c-x))
+                if d<min:
+                    min = d
+                    i_min = i
+            # If cluster has jumped too far (i.e. the cluster being predicted has disappeared), add as new centroid
+            if min < .5:
+                self.cluster_map[self.next_id] = c
+                self.next_id += 1
+            # lc is the last centroid corresponding to the prediction closest to c
+            lc = self.last_centroids[self.kalman_predict_centroids.index(min)]
+            # update the centroid in the map of clusters
+            id = self.cluster_map.keys()[self.cluster_map.values().index(lc)]
+            self.cluster_map[id] = self.centroids[i_min]
+
+        if self.kf is None:
+            self.kf = KalmanFilter(transition_matrices = [[1, 1], [0, 1]], observation_matrices = [[0.1, 0.5], [-0.3, 0.0]])
+            self.kf = self.kf.em(centroids, n_iter=5)
+
+
         if len(centroids) == 0:
             c = np.array([0., 0.])
         if len(centroids) == 1:
@@ -365,34 +356,16 @@ class SimpleLaser(object):
             # get first index of the minimum non-zero distance
             i = np.argwhere(pd == np.min(pd[(pd > 0.)]))[0]
             # take two centroids that are closest together - these are legs
-            # TODO: only take 2 centroids that are less than some distance apart if there's more than one cluster
+            # only take 2 centroids that are less than some distance apart if there's more than one cluster
             c1 = centroids[i[0]]
             c2 = centroids[i[1]]
-            c3 = (c1+c2)/2
-            c = c3
+            if np.abs(np.linalg.norm(c1-c2)) < .5: 
+                c3 = (c1+c2)/2
+                c = c3
+            else:
+                return np.array([0.,0.])
         print("centroid: ", c)
         return c
-        # a = 'occupancy_grid'
-        # b = ROBOT_NAME+'/base_scan'
-        # if self._tf.frameExists(a) and self._tf.frameExists(b):
-        #     try:
-        #         t = rospy.Time(0)
-        #         trans, _ = self._tf.lookupTransform(
-        #             '/' + a, '/' + b, t)
-        #         print("t",trans)
-        #         translation = np.array([trans[X], trans[Y]])
-        #         print("translation ", translation)
-        #         # TODO: might need to rotate as well - use euler_from quaternion and rotate?
-        #         centroid = np.array([sumx/num,-sumy/num]) + translation
-        #         print("c",np.array([sumx/num,-sumy/num]),";",centroid)
-        #         return centroid
-        #     except Exception as e:
-        #         print(e)
-        # else:
-        #     print('Unable to find:', self._tf.frameExists(
-        #         a), self._tf.frameExists(b))
-        #     return
-
 
 def get_centroid(points):
     return np.mean(points, axis=0)[X:Y+1]
@@ -435,6 +408,7 @@ def run(args):
     # path_publisher = rospy.Publisher(
     #     '/'+ROBOT_NAME+'/path', Path, queue_size=1)
     follow_point_publisher = rospy.Publisher('/follow', Marker, queue_size=1)
+    centroids_publisher = rospy.Publisher('/centroids', Marker, queue_size=1)
     slam = SLAM()
     goal = GoalPose()
     lp = lg.LaserProjection()
@@ -466,13 +440,6 @@ def run(args):
             rate_limiter.sleep()
             continue
 
-        # goal_reached = np.linalg.norm(slam.pose[:2] - goal.position) < .2
-        # if goal_reached:
-        #     print("Goal Reached")
-        #     publisher.publish(stop_msg)
-        #     rate_limiter.sleep()
-        #     continue
-
         # Follow path using feedback linearization.
         position = np.array([
             slam.pose[X] + EPSILON * np.cos(slam.pose[YAW]),
@@ -481,7 +448,8 @@ def run(args):
         # follow is relative to robot frame
         follow = get_follow_position(position, laser)
 
-        goal_reached = np.linalg.norm(follow) < .4
+        # 20cm away from object is good enough
+        goal_reached = np.linalg.norm(follow) < .2
         if goal_reached:
             print("Goal Reached")
             publisher.publish(stop_msg)
@@ -516,39 +484,32 @@ def run(args):
         marker.color.r = 1.0
         follow_point_publisher.publish(marker)
 
-        # Update plan every 1s.
-
-        # time_since = current_time - previous_time
-        # if current_path and time_since < 2.:
-        #     rate_limiter.sleep()
-        #     continue
-        # previous_time = current_time
-
-        # Run RRT.
-        # start_node, final_node = rrt.rrt(
-        #     slam.pose, follow_position, slam.occupancy_grid)
-        # current_path = get_path(final_node)
-        # if not current_path:
-        #     print('Unable to reach goal position:', follow_position)
-
-        # Publish path to RViz.
-        # path_msg = Path()
-        # path_msg.header.seq = frame_id
-        # path_msg.header.stamp = rospy.Time.now()
-        # path_msg.header.frame_id = 'map'
-        # for u in current_path:
-        #     pose_msg = PoseStamped()
-        #     pose_msg.header.seq = frame_id
-        #     pose_msg.header.stamp = path_msg.header.stamp
-        #     pose_msg.header.frame_id = 'map'
-        #     pose_msg.pose.position.x = u[X]
-        #     pose_msg.pose.position.y = u[Y]
-        #     path_msg.poses.append(pose_msg)
-        # path_publisher.publish(path_msg)
-
         rate_limiter.sleep()
         frame_id += 1
 
+def publish_points(topic,points):
+    # points is np array of 2-D points
+    marker = Marker()
+
+    marker.header.frame_id = "/"+ROBOT_NAME+"/base_link"
+    marker.type = marker.POINTS
+    marker.action = marker.ADD
+    marker.pose.orientation.w = 1
+    ps = []
+    for p in points:
+        f = Point()
+        f.x = p[X]
+        f.y = p[Y]
+        ps.append(f)
+    marker.points = ps
+    t = rospy.Duration()
+    marker.lifetime = t
+    marker.scale.x = 0.1
+    marker.scale.y = 0.1
+    marker.scale.z = 0.1
+    marker.color.a = 1.0
+    marker.color.r = 1.0
+    follow_point_publisher.publish(marker)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Runs RRT navigation')
