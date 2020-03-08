@@ -25,12 +25,12 @@
     <param name="tf_prefix" value="$(arg first_tb3)"/>
   </node>
 
-  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher1">
     <param name="publish_frequency" type="double" value="50.0" />
     <param name="tf_prefix" value="$(arg second_tb3)"/>
   </node>
 
-  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher2">
     <param name="publish_frequency" type="double" value="50.0" />
     <param name="tf_prefix" value="$(arg third_tb3)"/>
   </node>

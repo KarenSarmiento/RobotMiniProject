@@ -1,7 +1,16 @@
-from sklearn.metrics import pairwise_distances
-from formation import Robot
-import numpy as np
+from robot import Robot
+from geometry_msgs.msg import Point
+from visualization_msgs.msg import Marker
+import rospy
 from geometry_msgs.msg import Twist
+import numpy as np
+from sklearn.metrics import pairwise_distances
+import os
+import sys
+directory = os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), '.')
+sys.path.insert(0, directory)
+
 
 X = 0
 Y = 1
@@ -13,55 +22,48 @@ stop_msg.angular.z = 0.
 
 
 class Leader(Robot):
-    def __init__(self, name):
-        super(Leader, self).__init__(name)
+    def __init__(self, name, rate_limiter):
+        super(Leader, self).__init__(name, rate_limiter=rate_limiter)
         self._epsilon = 0.1
+        self.leg_pub = rospy.Publisher(
+            '/' + name + '/legs', Marker, queue_size=5)
+        self.follow = None
 
-    def update_velocities(self, rate_limiter):
-        c = self.find_legs()
-        # If we are at most 20cm away from the "legs", stop
-        if not np.isfinite(np.linalg.norm(c)):
-            print(c, " is nan")
-            return np.array([0., 0])
-        if np.linalg.norm(c) < 0.2:
-            print("close enough, stopping")
-        print(np.linalg.norm(c), " away from centroid")
-        # feedback linearize towards centroids which look like legs
-
+    def update_velocities(self):
+        if not self.laser.ready:
+            return
         position = np.array([
             self.slam.pose[X] + self.epsilon * np.cos(self.slam.pose[YAW]),
             self.slam.pose[Y] + self.epsilon * np.sin(self.slam.pose[YAW])], dtype=np.float32)
-        # v = get_velocity(position, np.array(current_path, dtype=np.float32))
+
         # follow is relative to robot frame
-        follow = get_follow_position(position, laser)
+        follow = self.find_legs(position)
 
         # 20cm away from object is good enough
         goal_reached = np.linalg.norm(follow) < .2
-        if goal_reached:
-            print("Goal Reached")
+        if goal_reached or not np.isfinite(np.linalg.norm(follow)):
             self.publisher.publish(stop_msg)
-            rate_limiter.sleep()
-            continue
-
+            self.rate_limiter.sleep()
+            return
         v = cap(0.2*follow, SPEED)
-        print("v: ", v)
+        print("v-", self.name, ": ", v)
+        print(self.slam.pose)
         u, w = self.feedback_linearized(
             self.slam.pose, v, epsilon=self.epsilon)
+        print(u, w)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
-        print(vel_msg)
         self.publisher.publish(vel_msg)
 
-    def find_legs(self):
-        c = self.laser.centroids
+    def find_legs(self, position):
 
         centroids = self.laser.centroids
         # publish_points("/centroids", centroids)
-
+        print("centroids: ", centroids, len(centroids))
         if len(centroids) == 0:
             c = np.array([0., 0.])
-        if len(centroids) == 1:
+        elif len(centroids) == 1:
             # TODO: don't move if only one cluster (one cluster => not legs)
             c = centroids[0]
         else:
@@ -77,8 +79,11 @@ class Leader(Robot):
                 c = c3
             else:
                 return np.array([0., 0.])
-
+        self.follow = c
         return c
+
+    def publish_leg(self):
+        self.publish_markers(np.array([self.follow]), self.leg_pub)
 
     @property
     def epsilon(self):

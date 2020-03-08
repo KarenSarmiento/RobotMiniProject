@@ -96,7 +96,7 @@
       <collision name='Cylinder_1_Collision'>
         <geometry>
           <cylinder>
-            <radius>0.1</radius>
+            <radius>0.05</radius>
             <length>0.5</length>
           </cylinder>
         </geometry>
@@ -106,7 +106,7 @@
         <pose frame=''>0 0 0.25 0 -0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.1</radius>
+            <radius>0.05</radius>
             <length>0.5</length>
           </cylinder>
         </geometry>
@@ -114,7 +114,7 @@
           <ambient>1 1 1 1</ambient>
         </material>
       </visual>
-      <pose frame=''>-0.6 -0.3 0 0 0 0</pose>
+      <pose frame=''>2 2 0 0 0 0</pose>
     </link>
     <link name='Cylinder_2'>
       <collision name='Cylinder_2_Collision'>
@@ -138,7 +138,7 @@
           <ambient>1 1 1 1</ambient>
         </material>
       </visual>
-      <pose frame=''>-0.3 -0.3 0 0 0 0</pose>
+      <pose frame=''>2.4 2 0 0 0 0</pose>
     </link>
     <static>1</static>
   </model>

@@ -178,7 +178,7 @@ def get_follow_position(pose, laser):
     if np.linalg.norm(c) < 0.2:
         print("close enough, stopping")
     print(np.linalg.norm(c), " away from centroid")
-        return np.array([0., 0.])
+    return np.array([0., 0.])
     return c
 
 def run(args):
