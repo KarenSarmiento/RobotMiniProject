@@ -66,8 +66,8 @@ def run(args):
     # Update measurements every 100 ms.
     rate_limiter = rospy.Rate(200)
  
-    leader = GroundtruthPose("tb3_1")
-    follower_1 = GroundtruthPose("tb3_0")
+    leader = GroundtruthPose("tb3_0")
+    follower_1 = GroundtruthPose("tb3_1")
     follower_2 = GroundtruthPose("tb3_2")
 
     while not rospy.is_shutdown():

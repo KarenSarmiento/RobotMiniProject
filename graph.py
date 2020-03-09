@@ -8,20 +8,22 @@ f1_poses = np.loadtxt('follower_1_poses')
 f2_poses = np.loadtxt('follower_2_poses')
 tms = np.loadtxt('time_vals')
 
-desired_rel_pos_1 = np.array([0.0, 0.25, 0.0])
-desired_rel_pos_2 = np.array([0.0, -0.25, 0.0])
+desired_rel_pos_1 = np.array([-0.5, 0.5, 0.0])
+desired_rel_pos_2 = np.array([-0.5, -0.5, 0.0])
 
-target_rel_poses_1 = np.array([l_poses[0] * np.cos(l_poses[2])
-        - l_poses[1] * np.sin(l_poses[2]),
-        l_poses[0] * np.sin(l_poses[2])
-        + l_poses[1] * np.cos(l_poses[2])])
+target_rel_poses_1 = np.array([desired_rel_pos_1[0]
+            * np.cos(l_poses[2])
+        - desired_rel_pos_1[1] * np.sin(l_poses[2]),
+        desired_rel_pos_1[0] * np.sin(l_poses[2])
+        + desired_rel_pos_1[1] * np.cos(l_poses[2])])
 target_poses_1 = np.array([ l_poses[0] + target_rel_poses_1[0],
         l_poses[1] + target_rel_poses_1[1] ])
 
-target_rel_poses_2 = np.array([l_poses[0] * np.cos(l_poses[2])
-        - l_poses[1] * np.sin(l_poses[2]),
-        l_poses[0] * np.sin(l_poses[2])
-        + l_poses[1] * np.cos(l_poses[2])])
+target_rel_poses_2 = np.array([desired_rel_pos_2[0]
+            * np.cos(l_poses[2])
+        - desired_rel_pos_2[1] * np.sin(l_poses[2]),
+        desired_rel_pos_2[0] * np.sin(l_poses[2])
+        + desired_rel_pos_2[1] * np.cos(l_poses[2])])
 target_poses_2 = np.array([ l_poses[0] + target_rel_poses_2[0],
         l_poses[1] + target_rel_poses_2[1] ])
 
