@@ -1,3 +1,6 @@
+from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
+from visualization_msgs.msg import Marker, MarkerArray
+from tf import TransformListener
 from robot import Robot
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
@@ -10,7 +13,6 @@ import sys
 directory = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), '.')
 sys.path.insert(0, directory)
-
 
 X = 0
 Y = 1
@@ -29,7 +31,9 @@ class Leader(Robot):
             '/' + name + '/legs', Marker, queue_size=5)
         self.centroid_pub = rospy.Publisher(
             '/' + name + '/centroids', Marker, queue_size=5)
+        self.v_pub = rospy.Publisher('/'+name+'/vel', Marker, queue_size=5)
         self.follow = None
+        self._tf = TransformListener()
 
     def update_velocities(self):
         if not self.laser.ready:
@@ -40,28 +44,86 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs(position)
-
-        # 20cm away from object is good enough
-        goal_reached = np.linalg.norm(follow) < .2
+        # 40cm away from object is good enough
+        goal_reached = np.linalg.norm(follow) < .4
         if goal_reached or not np.isfinite(np.linalg.norm(follow)):
+            if goal_reached:
+                print("Goal reached")
+            else:
+                print("nans: ", follow)
             self.publisher.publish(stop_msg)
             self.rate_limiter.sleep()
             return
+        # position = np.array([
+        #     0,
+        #     self.epsilon], dtype=np.float32)
+        # if c_position is None:
+        #     return
+        # v = self.get_velocity(position, c_position)
+
+        # TODO: PID here?
         v = cap(0.2*follow, SPEED)
+        self.publish_v(v, self.v_pub)
         u, w = self.feedback_linearized(
             self.slam.pose, v, epsilon=self.epsilon)
-
+        # u, w = self.p_control(follow)
+        print(self.slam.pose)
+        print("v--", v)
+        print("u", u, "w", w)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
         self.publisher.publish(vel_msg)
+
+    def p_control(self, follow):
+        angle = np.arctan2(follow[Y], follow[X]) - np.pi/4.
+        dist = np.linalg.norm(follow)
+        w = 0.15 * angle
+        u = 0.2 * dist
+        return u, w
+
+    def feedback_linearized(self, pose, v, epsilon):
+        u = v[X]
+        w = v[Y] / epsilon
+        return u, w
+
+    def publish_v(self, v, pub):
+        m = Marker()
+        m.action = Marker.ADD
+        m.header.frame_id = '/'+self.name+'/base_link'
+        m.header.stamp = rospy.Time.now()
+        m.ns = 'points_arrows'
+        m.type = Marker.ARROW
+        m.color.r = 0.2
+        m.color.g = 0.5
+        m.color.b = 1.0
+        m.color.a = 0.3
+        m.scale = Vector3(0.01, 0.02, 0.05)
+        p = Point()
+        p.x = 0
+        p.y = 0
+        p1 = Point()
+        p1.x = v[X]
+        p1.y = v[Y]
+        m.points = [p, p1]
+        pub.publish(m)
+        self.rate_limiter.sleep()
+
+    def get_velocity(self, position, point):
+
+        err = point - position
+        k = 0.2
+        v = cap(k*err, SPEED)
+        print(position, " -> ", point)
+        print("err ", err)
+        print("leader v: ", v)
+        return v
 
     def find_legs(self, position):
 
         centroids = self.laser.centroids
         self.publish_markers(centroids, self.centroid_pub)
 
-        print("centroids: ", centroids, len(centroids))
         if len(centroids) == 0:
             c = np.array([0., 0.])
         elif len(centroids) == 1:

@@ -99,7 +99,6 @@ class Laser(object):
 
         # TODO: publish all these detected clusters on some other marker
         centroids = np.array([get_centroid(ps) for ps in clusters])
-        print(self.name + " centroids: ", centroids)
         return centroids
 
 

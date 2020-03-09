@@ -48,7 +48,7 @@ class Robot(object):
         w = (-velocity[X] * np.sin(pose[YAW]) +
              velocity[Y] * np.cos(pose[YAW])) / epsilon
 
-        return u, w
+        return u, w*1.2
 
     def publish_markers(self, points, pub):
         if points is None or len(points) == 0:
