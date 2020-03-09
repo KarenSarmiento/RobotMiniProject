@@ -673,8 +673,8 @@ void merge_maps_and_publish(ros::Publisher p)
 
   ROS_INFO("MERGING...\n");
 
-  // Get map incoming time
-  ros::Time map_time = ros::Time::now();
+  // Get map incoming time and add 15 seconds (~ map update time)
+  ros::Time map_time = ros::Time::now() + ros::Duration(15.0);
 
   // Create zero-transform for tb3_0
   map0_transform.setOrigin(

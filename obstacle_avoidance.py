@@ -7,6 +7,8 @@ from __future__ import print_function
 import argparse
 import numpy as np
 import rospy
+import os
+import sys
 
 # Robot motion commands:
 # http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html
@@ -16,8 +18,28 @@ from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 # For groundtruth information.
 from gazebo_msgs.msg import ModelStates
+# Occupancy Grid
+from nav_msgs.msg import OccupancyGrid
+# Position.
+from tf import TransformListener
+# Goal.
+from geometry_msgs.msg import PoseStamped
+# Path.
+from nav_msgs.msg import Path
+# For pose information.
 from tf.transformations import euler_from_quaternion
 from pyquaternion import Quaternion
+
+# Import the potential_field.py code rather than copy-pasting.
+directory = os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), '.')
+sys.path.insert(0, directory)
+try:
+    import rrt
+except ImportError:
+    raise ImportError(
+        'Unable to import potential_field.py. Make sure this file is in "{}"'.format(directory))
+
 
 X = 0
 Y = 1
@@ -33,6 +55,57 @@ def braitenberg(front, front_left, front_right, left, right):
   vel_scale_factor = 1.0
   u = 1.0 - np.dot(sensors, vel_weights) * vel_scale_factor
   return u, w # ([m/s], [rad/s])
+
+class SLAM(object):
+    def __init__(self, name):
+        self._name = name
+        rospy.Subscriber('/'+self._name+'/map', OccupancyGrid, self.callback)
+        self._tf = TransformListener()
+        self._occupancy_grid = None
+        self._pose = np.array([np.nan, np.nan, np.nan], dtype=np.float32)
+
+    def callback(self, msg):
+        values = np.array(msg.data, dtype=np.int8).reshape(
+            (msg.info.width, msg.info.height))
+        processed = np.empty_like(values)
+        processed[:] = rrt.FREE
+        processed[values < 0] = rrt.UNKNOWN
+        processed[values > 50] = rrt.OCCUPIED
+        processed = processed.T
+        origin = [msg.info.origin.position.x, msg.info.origin.position.y, 0.]
+        resolution = msg.info.resolution
+        self._occupancy_grid = rrt.OccupancyGrid(processed, origin, resolution)
+
+    def update(self):
+        # Get pose w.r.t. map.
+        a = 'occupancy_grid'
+        b = self._name+'/base_link'
+        if self._tf.frameExists(a) and self._tf.frameExists(b):
+            try:
+                t = rospy.Time(0)
+                print(t)
+                position, orientation = self._tf.lookupTransform(
+                    '/' + a, '/' + b, t)
+                self._pose[X] = position[X]
+                self._pose[Y] = position[Y]
+                _, _, self._pose[YAW] = euler_from_quaternion(orientation)
+            except Exception as e:
+                print("EXCEPTIONY THINGY: ", e)
+        else:
+            print('Unable to find:', self._tf.frameExists(
+                a), self._tf.frameExists(b))
+
+    @property
+    def ready(self):
+        return self._occupancy_grid is not None and not np.isnan(self._pose[0])
+
+    @property
+    def pose(self):
+        return self._pose
+
+    @property
+    def occupancy_grid(self):
+        return self._occupancy_grid
 
 class SimpleLaser(object):
     def __init__(self, name=""):
@@ -109,6 +182,7 @@ class GroundtruthPose(object):
 
 class Robot(object):
     def __init__(self, name):
+        self.slam = SLAM(name)
         self.groundtruth = GroundtruthPose(name)
         self.pose_history = []
         self.publisher = rospy.Publisher('/' + name + '/cmd_vel', Twist, queue_size=5)
@@ -129,7 +203,7 @@ class Leader(Robot):
         super(Leader, self).__init__(name) 
 
     def update_velocities_braitenberg(self, rate_limiter):
-        if not self.laser.ready or not self.groundtruth.ready:
+        if not self.laser.ready or not self.groundtruth.ready or not self.slam.ready:
             rate_limiter.sleep()
             return
         u, w = braitenberg(*self.laser.measurements)
@@ -150,7 +224,7 @@ class Follower(Robot):
 
     def formation_velocity(self, pose, leader_pose, rate_limiter):
         # Return if not ready.
-        if not self.laser.ready or not self.groundtruth.ready:
+        if not self.laser.ready or not self.groundtruth.ready or not self.slam.ready:
             rate_limiter.sleep()
             return
 
@@ -210,6 +284,7 @@ def _rotate(vector, angle, axis=[0.0, 0.0, 1.0]):
   return Quaternion(axis=axis,angle=angle).rotate(np.append(vector, [0.0]))[:2]
 
 def run(args):
+    print("Starting obstacle_avoidance...")
     rospy.init_node('obstacle_avoidance')
 
     # Update control every 100 ms.
@@ -220,15 +295,18 @@ def run(args):
     follower_2 = Follower("tb3_2", desired_rel_pos=np.array([0.0, -0.25, 0.0]))
 
     while not rospy.is_shutdown():
+        leader.slam.update()
+        follower_1.slam.update()
+        follower_2.slam.update()
         # Make sure all measurements are ready.
         leader.update_velocities_braitenberg(rate_limiter=rate_limiter)
         follower_1.formation_velocity(
-            pose=follower_1.groundtruth.pose,
-            leader_pose=leader.groundtruth.pose,
+            pose=follower_1.slam.pose,
+            leader_pose=leader.slam.pose,
             rate_limiter=rate_limiter)
         follower_2.formation_velocity(
-            pose=follower_2.groundtruth.pose,
-            leader_pose=leader.groundtruth.pose,
+            pose=follower_2.slam.pose,
+            leader_pose=leader.slam.pose,
             rate_limiter=rate_limiter)
 
         rate_limiter.sleep()
