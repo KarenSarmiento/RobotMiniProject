@@ -10,7 +10,7 @@ from sklearn.cluster import DBSCAN
 
 
 class Laser(object):
-    def __init__(self, lp=None, name=""):
+    def __init__(self, lp=None, name="", laser_range=[np.pi/3.,np.pi/3.], max_range=3.):
         rospy.Subscriber('/'+name+'/scan', LaserScan, self.callback)
         # self._angles = [0., np.pi / 4., -np.pi / 4., np.pi / 2., -np.pi / 2.]
         n = 100
@@ -26,6 +26,8 @@ class Laser(object):
         self.kf = None
         self.cluster_map = {}
         self.next_id = 0
+        self.laser_range=laser_range
+        self.max_range=max_range
 
     def callback(self, msg):
         # Helper for angles.
@@ -41,12 +43,12 @@ class Laser(object):
             msg.angle_min, msg.angle_max + msg.angle_increment, msg.angle_increment)
         # print(msg.ranges)
         # angles are counterclockwise, 0/2pi is straight ahead
-        cone_left = np.pi/3
-        cone_right = np.pi/3
+        cone_left = self.laser_range[0]
+        cone_right = self.laser_range[1]
         # limit field of view, only consider points close enough
         self._measurements = np.array(msg.ranges)
         cone = np.where(((self._angles > (2*np.pi - cone_right))
-                         | (self._angles < cone_left)) & (self._measurements < 3.5))
+                         | (self._angles < cone_left)) & (self._measurements < self.max_range))
 
         self.cone_measurements = self._measurements[cone]
         self.cone_angles = self._angles[cone]

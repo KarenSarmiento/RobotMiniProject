@@ -34,17 +34,14 @@ class Leader(Robot):
         self.v_pub = rospy.Publisher('/'+name+'/vel', Marker, queue_size=5)
         self.follow = None
         self._tf = TransformListener()
-        self.last_vel = np.array([0.,0.])
+        self.last_vel = np.array([0., 0.])
 
     def update_velocities(self):
         if not self.laser.ready:
             return
-        position = np.array([
-            self.slam.pose[X] + self.epsilon * np.cos(self.slam.pose[YAW]),
-            self.slam.pose[Y] + self.epsilon * np.sin(self.slam.pose[YAW])], dtype=np.float32)
 
         # follow is relative to robot frame
-        follow = self.find_legs(position)
+        follow = self.find_legs()
         # 40cm away from object is good enough
         goal_reached = np.linalg.norm(follow) < .4
         if goal_reached or not np.isfinite(np.linalg.norm(follow)):
@@ -55,23 +52,18 @@ class Leader(Robot):
             self.publisher.publish(stop_msg)
             self.rate_limiter.sleep()
             return
-        # position = np.array([
-        #     0,
-        #     self.epsilon], dtype=np.float32)
-        # if c_position is None:
-        #     return
-        # v = self.get_velocity(position, c_position)
 
         # TODO: PID here?
         v = cap(0.2*follow, SPEED)
         self.publish_v(v, self.v_pub)
+        # relative feedback linearization
         u, w = self.feedback_linearized(
             self.slam.pose, v, epsilon=self.epsilon)
         # u, w = self.p_control(follow)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
-        self.last_vel = np.array([u,w])
+        self.last_vel = np.array([u, w])
         self.publisher.publish(vel_msg)
 
     def p_control(self, follow):
@@ -118,7 +110,7 @@ class Leader(Robot):
         print("leader v: ", v)
         return v
 
-    def find_legs(self, position):
+    def find_legs(self):
 
         centroids = self.laser.centroids
         self.publish_markers(centroids, self.centroid_pub)

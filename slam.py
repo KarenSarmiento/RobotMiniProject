@@ -41,13 +41,11 @@ class SLAM(object):
         # Get pose w.r.t. map.
         a = self.map_frame
         b = self.name+'/base_link'
-        print(a, b)
         if self._tf.frameExists(a) and self._tf.frameExists(b):
             try:
                 t = rospy.Time(0)
                 position, orientation = self._tf.lookupTransform(
                     '/' + a, '/' + b, t)
-                print(position)
                 self._pose[X] = position[X]
                 self._pose[Y] = position[Y]
                 _, _, self._pose[YAW] = euler_from_quaternion(orientation)
