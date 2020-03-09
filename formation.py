@@ -46,6 +46,7 @@ def run(args):
     while not rospy.is_shutdown():
         leader.update_velocities()
         leader.publish_leg()
+        leader.slam.update()
 
         follower_1.formation_velocity()
         follower_2.formation_velocity()

@@ -35,13 +35,11 @@ class SLAM(object):
         origin = [msg.info.origin.position.x, msg.info.origin.position.y, 0.]
         resolution = msg.info.resolution
         self._occupancy_grid = OccupancyGrid(processed, origin, resolution)
-        print(self._occupancy_grid._values)
 
     def update(self):
         # Get pose w.r.t. map.
         a = 'occupancy_grid'
         b = self.name+'/base_link'
-        print("update")
         if self._tf.frameExists(a) and self._tf.frameExists(b):
             try:
                 t = rospy.Time(0)

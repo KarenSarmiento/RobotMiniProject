@@ -53,7 +53,7 @@ class Laser(object):
         # TODO: precalculate sin/cos for cone_angles and cache
         f = np.isfinite(self.cone_measurements)
         angles = np.transpose(
-            np.vstack((np.cos(self.cone_angles[f]), -np.sin(self.cone_angles[f]))))
+            np.vstack((np.cos(self.cone_angles[f]), np.sin(self.cone_angles[f]))))
         # points is array of points, shape (n,2), [[x1,y1],[x2,y2] ...]
         points = np.array([self.cone_measurements[f]]).transpose() * angles
         self._points = points

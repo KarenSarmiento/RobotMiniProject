@@ -27,6 +27,8 @@ class Leader(Robot):
         self._epsilon = 0.1
         self.leg_pub = rospy.Publisher(
             '/' + name + '/legs', Marker, queue_size=5)
+        self.centroid_pub = rospy.Publisher(
+            '/' + name + '/centroids', Marker, queue_size=5)
         self.follow = None
 
     def update_velocities(self):
@@ -46,11 +48,9 @@ class Leader(Robot):
             self.rate_limiter.sleep()
             return
         v = cap(0.2*follow, SPEED)
-        print("v-", self.name, ": ", v)
-        print(self.slam.pose)
         u, w = self.feedback_linearized(
             self.slam.pose, v, epsilon=self.epsilon)
-        print(u, w)
+
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
@@ -59,7 +59,8 @@ class Leader(Robot):
     def find_legs(self, position):
 
         centroids = self.laser.centroids
-        # publish_points("/centroids", centroids)
+        self.publish_markers(centroids, self.centroid_pub)
+
         print("centroids: ", centroids, len(centroids))
         if len(centroids) == 0:
             c = np.array([0., 0.])
@@ -74,7 +75,7 @@ class Leader(Robot):
             # only take 2 centroids that are less than some distance apart if there's more than one cluster
             c1 = centroids[i[0]]
             c2 = centroids[i[1]]
-            if np.abs(np.linalg.norm(c1-c2)) < .5:
+            if np.abs(np.linalg.norm(c1-c2)) < .75:
                 c3 = (c1+c2)/2
                 c = c3
             else:
