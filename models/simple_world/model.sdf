@@ -3,7 +3,7 @@
   <model name='simple'>
     <link name='fixed'></link>
     <pose frame=''>0 0 0 0 -0 0</pose>
-    <!-- <link name='Wall_0'>
+    <link name='Wall_0'>
       <collision name='Wall_0_Collision'>
         <geometry>
           <box>
@@ -90,7 +90,7 @@
         </material>
       </visual>
       <pose frame=''>2.075 0 0 0 -0 1.5708</pose>
-    </link> -->
+    </link>
 
     <link name='Cylinder_1'>
       <collision name='Cylinder_1_Collision'>
@@ -116,7 +116,7 @@
       </visual>
       <pose frame=''>-0.6 -0.3 0 0 0 0</pose>
     </link>
-    <link name='Cylinder_2'>
+    <!--<link name='Cylinder_2'>
       <collision name='Cylinder_2_Collision'>
         <geometry>
           <cylinder>
@@ -139,7 +139,7 @@
         </material>
       </visual>
       <pose frame=''>-0.3 -0.3 0 0 0 0</pose>
-    </link>
+    </link>-->
     <static>1</static>
   </model>
 </sdf>
