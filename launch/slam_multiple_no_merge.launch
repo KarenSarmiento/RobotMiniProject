@@ -24,6 +24,8 @@
   </group>
 
   <node pkg="tf" type="static_transform_publisher" name="map_broadcaster" args="0 0 0 0 0 0 /$(arg robot_ns)/map occupancy_grid 100" />
+  <node pkg="tf" type="static_transform_publisher" name="map_broadcaster1" args="0 0 0 0 0 0 /tb3_1/map tb3_1/occupancy_grid 100" />
+  <node pkg="tf" type="static_transform_publisher" name="map_broadcaster2" args="0 0 0 0 0 0 /tb3_2/map tb3_2/occupancy_grid 100" />
 
   <!-- SLAM: Gmapping -->
   <node pkg="gmapping" type="slam_gmapping" name="turtlebot3_slam_gmapping" output="screen" ns="$(arg robot_ns)">

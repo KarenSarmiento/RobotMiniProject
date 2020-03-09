@@ -25,12 +25,12 @@ YAW = 2
 
 
 class Robot(object):
-    def __init__(self, name, rate_limiter):
+    def __init__(self, name, rate_limiter, map_frame="occupancy_grid"):
         self.pose_history = []
         self.publisher = rospy.Publisher(
             '/' + name + '/cmd_vel', Twist, queue_size=5)
         self.laser = Laser(name=name)
-        self.slam = SLAM(name=name)
+        self.slam = SLAM(name=name, map_frame=map_frame)
         self.name = name
         self.rate_limiter = rate_limiter
         with open('/tmp/gazebo_exercise_'+self.name+'.txt', 'w'):
@@ -50,7 +50,7 @@ class Robot(object):
 
         return u, w*1.2
 
-    def publish_markers(self, points, pub):
+    def publish_markers(self, points, pub, color_r=1.0):
         if points is None or len(points) == 0:
             return
         marker = Marker()
@@ -73,7 +73,7 @@ class Robot(object):
         marker.scale.y = 0.1
         marker.scale.z = 0.1
         marker.color.a = 1.0
-        marker.color.r = 1.0
+        marker.color.r = color_r
         pub.publish(marker)
 
         self.rate_limiter.sleep()

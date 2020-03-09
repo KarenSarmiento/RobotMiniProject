@@ -39,9 +39,15 @@ def run(args):
 
     leader = Leader("tb3_0", rate_limiter)
     follower_1 = Follower("tb3_1", desired_rel_pos=np.array(
-        [-0.5, 0.5, 0.0]), rate_limiter=rate_limiter)
+        [-0.5, 0.5, 0.0]), rate_limiter=rate_limiter, 
+        des_d = 0.7,
+        des_psi = 2*np.pi/3,
+        leader=leader)
     follower_2 = Follower("tb3_2", desired_rel_pos=np.array(
-        [-0.5, -0.5, 0.0]), rate_limiter=rate_limiter)
+        [-0.5, -0.5, 0.0]), rate_limiter=rate_limiter, 
+        des_d = 0.7,
+        des_psi = 2*np.pi/3,
+        leader=leader)
 
     while not rospy.is_shutdown():
         leader.update_velocities()

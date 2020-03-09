@@ -17,12 +17,13 @@ OCCUPIED = 2
 
 
 class SLAM(object):
-    def __init__(self, name="tb3_0"):
+    def __init__(self, name="tb3_0", map_frame="occupancy_grid"):
         rospy.Subscriber('/'+name+'/map', GridMsg, self.callback)
         self._tf = TransformListener()
         self._occupancy_grid = None
         self._pose = np.array([np.nan, np.nan, np.nan], dtype=np.float32)
         self.name = name
+        self.map_frame = map_frame
 
     def callback(self, msg):
         values = np.array(msg.data, dtype=np.int8).reshape(
@@ -38,13 +39,15 @@ class SLAM(object):
 
     def update(self):
         # Get pose w.r.t. map.
-        a = 'occupancy_grid'
+        a = self.map_frame
         b = self.name+'/base_link'
+        print(a, b)
         if self._tf.frameExists(a) and self._tf.frameExists(b):
             try:
                 t = rospy.Time(0)
                 position, orientation = self._tf.lookupTransform(
                     '/' + a, '/' + b, t)
+                print(position)
                 self._pose[X] = position[X]
                 self._pose[Y] = position[Y]
                 _, _, self._pose[YAW] = euler_from_quaternion(orientation)

@@ -34,6 +34,7 @@ class Leader(Robot):
         self.v_pub = rospy.Publisher('/'+name+'/vel', Marker, queue_size=5)
         self.follow = None
         self._tf = TransformListener()
+        self.last_vel = np.array([0.,0.])
 
     def update_velocities(self):
         if not self.laser.ready:
@@ -67,12 +68,10 @@ class Leader(Robot):
         u, w = self.feedback_linearized(
             self.slam.pose, v, epsilon=self.epsilon)
         # u, w = self.p_control(follow)
-        print(self.slam.pose)
-        print("v--", v)
-        print("u", u, "w", w)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
+        self.last_vel = np.array([u,w])
         self.publisher.publish(vel_msg)
 
     def p_control(self, follow):
