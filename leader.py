@@ -1,5 +1,5 @@
 from laser import Laser
-from pykalman import KalmanFilter
+#from pykalman import KalmanFilter
 from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 from tf import TransformListener
@@ -26,7 +26,7 @@ stop_msg.angular.z = 0.
 
 class Leader(Robot):
     def __init__(self, name, rate_limiter):
-        super(Leader, self).__init__(name, rate_limiter=rate_limiter)
+        super(Leader, self).__init__(name, rate_limiter=rate_limiter, laser_range=[np.pi/4., np.pi/4], laser_dist=1.2)
         self._epsilon = 0.1
         self.leg_pub = rospy.Publisher(
             '/' + name + '/legs', Marker, queue_size=5)
@@ -45,8 +45,8 @@ class Leader(Robot):
         def g(state, noise):
             pass
 
-        self.ukf = UnscentedKalmanFilter(f, g)
-        self.kf = None
+        #self.ukf = UnscentedKalmanFilter(f, g)
+        #self.kf = None
 
     def get_centroids_from_all_around_laser(self):
         return self.all_around_laser.centroids
@@ -57,7 +57,7 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs()
-
+        """
         if self.last_legs is not None:
             # predict + update with kalman
             follow = self.kf.smooth(follow)
@@ -65,7 +65,8 @@ class Leader(Robot):
         else:
             self.kf = KalmanFilter(initial_state_mean=0, n_dim_obs=2)
             self.kf = self.kf.em(follow)
-        # 40cm away from object is good enough
+        """
+        # 20cm away from object is good enough
         goal_reached = np.linalg.norm(follow) < .2
         if goal_reached or not np.isfinite(np.linalg.norm(follow)):
             if goal_reached:

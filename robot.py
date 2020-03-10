@@ -25,11 +25,11 @@ YAW = 2
 
 
 class Robot(object):
-    def __init__(self, name, rate_limiter, map_frame="occupancy_grid", laser_range=[np.pi/3, np.pi/3]):
+    def __init__(self, name, rate_limiter, map_frame="occupancy_grid", laser_range=[np.pi/3, np.pi/3], laser_dist=3):
         self.pose_history = []
         self.publisher = rospy.Publisher(
             '/' + name + '/cmd_vel', Twist, queue_size=5)
-        self.laser = Laser(name=name, laser_range=laser_range)
+        self.laser = Laser(name=name, laser_range=laser_range, max_range=laser_dist)
         self.slam = SLAM(name=name, map_frame=map_frame)
         self.name = name
         self.rate_limiter = rate_limiter
