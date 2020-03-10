@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 l_poses = np.loadtxt('leader_poses')
 f1_poses = np.loadtxt('follower_1_poses')
 f2_poses = np.loadtxt('follower_2_poses')
+#leg_positions = np.loadtxt('leg_positions')
 tms = np.loadtxt('time_vals')
 
 # Times into seconds
 tms /= 1000000000.0
 
-desired_rel_pos_1 = np.array([-0.5, 0.35, 0.0])
-desired_rel_pos_2 = np.array([-0.5, -0.35, 0.0])
+desired_rel_pos_1 = np.array([-0.35, 0.6, 0.0])
+desired_rel_pos_2 = np.array([-0.35, -0.6, 0.0])
 
 target_rel_poses_1 = np.array([desired_rel_pos_1[0]
             * np.cos(l_poses[2])
