@@ -18,7 +18,7 @@ sys.path.insert(0, directory)
 X = 0
 Y = 1
 YAW = 2
-SPEED = 0.2
+SPEED = 0.1
 stop_msg = Twist()
 stop_msg.linear.x = 0.
 stop_msg.angular.z = 0.
@@ -26,7 +26,7 @@ stop_msg.angular.z = 0.
 
 class Leader(Robot):
     def __init__(self, name, rate_limiter):
-        super(Leader, self).__init__(name, rate_limiter=rate_limiter, laser_range=[np.pi/4., np.pi/4], laser_dist=1.2)
+        super(Leader, self).__init__(name, rate_limiter=rate_limiter, laser_range=[np.pi/4., np.pi/4], laser_dist=3.0)
         self._epsilon = 0.1
         self.leg_pub = rospy.Publisher(
             '/' + name + '/legs', Marker, queue_size=5)
