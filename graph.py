@@ -12,8 +12,8 @@ tms = np.loadtxt('time_vals')
 # Times into seconds
 tms /= 1000000000.0
 
-desired_rel_pos_1 = np.array([0.283, -0.283, 0.0])
-desired_rel_pos_2 = np.array([0.283, 0.283, 0.0])
+desired_rel_pos_1 = np.array([-0.283, 0.283, 0.0])
+desired_rel_pos_2 = np.array([-0.283, -0.283, 0.0])
 
 target_rel_poses_1 = np.array([desired_rel_pos_1[0]
             * np.cos(l_poses[2])
