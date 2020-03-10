@@ -1,3 +1,5 @@
+from laser import Laser
+from pykalman import KalmanFilter
 from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 from tf import TransformListener
@@ -13,7 +15,6 @@ import sys
 directory = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), '.')
 sys.path.insert(0, directory)
-
 X = 0
 Y = 1
 YAW = 2
@@ -35,6 +36,20 @@ class Leader(Robot):
         self.follow = None
         self._tf = TransformListener()
         self.last_vel = np.array([0., 0.])
+        self.all_around_laser = Laser(name=name, laser_range=[np.pi, np.pi])
+        self.last_legs = None
+
+        def f(state, noise):
+            pass
+
+        def g(state, noise):
+            pass
+
+        self.ukf = UnscentedKalmanFilter(f, g)
+        self.kf = None
+
+    def get_centroids_from_all_around_laser(self):
+        return self.all_around_laser.centroids
 
     def update_velocities(self):
         if not self.laser.ready:
@@ -42,8 +57,16 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs()
+
+        if self.last_legs is not None:
+            # predict + update with kalman
+            follow = self.kf.smooth(follow)
+            self.kf = self.kf.em(follow)
+        else:
+            self.kf = KalmanFilter(initial_state_mean=0, n_dim_obs=2)
+            self.kf = self.kf.em(follow)
         # 40cm away from object is good enough
-        goal_reached = np.linalg.norm(follow) < .4
+        goal_reached = np.linalg.norm(follow) < .2
         if goal_reached or not np.isfinite(np.linalg.norm(follow)):
             if goal_reached:
                 print("Goal reached")
@@ -55,23 +78,19 @@ class Leader(Robot):
 
         # TODO: PID here?
         v = cap(0.2*follow, SPEED)
+
         self.publish_v(v, self.v_pub)
         # relative feedback linearization
         u, w = self.feedback_linearized(
             self.slam.pose, v, epsilon=self.epsilon)
-        # u, w = self.p_control(follow)
         vel_msg = Twist()
         vel_msg.linear.x = u
         vel_msg.angular.z = w
         self.last_vel = np.array([u, w])
+        self.pose_history.append(self.slam.pose)
+        self._update_pose_history()
         self.publisher.publish(vel_msg)
-
-    def p_control(self, follow):
-        angle = np.arctan2(follow[Y], follow[X]) - np.pi/4.
-        dist = np.linalg.norm(follow)
-        w = 0.15 * angle
-        u = 0.2 * dist
-        return u, w
+        self.last_legs = follow
 
     def feedback_linearized(self, pose, v, epsilon):
         u = v[X]
@@ -100,16 +119,6 @@ class Leader(Robot):
         pub.publish(m)
         self.rate_limiter.sleep()
 
-    def get_velocity(self, position, point):
-
-        err = point - position
-        k = 0.2
-        v = cap(k*err, SPEED)
-        print(position, " -> ", point)
-        print("err ", err)
-        print("leader v: ", v)
-        return v
-
     def find_legs(self):
 
         centroids = self.laser.centroids
@@ -134,6 +143,7 @@ class Leader(Robot):
             else:
                 return np.array([0., 0.])
         self.follow = c
+        self.abs_leg_pos = c + self.slam.pose[:-1]
         return c
 
     def publish_leg(self):

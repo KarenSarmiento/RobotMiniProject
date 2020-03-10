@@ -50,7 +50,7 @@ class Robot(object):
 
         return u, w*1.2
 
-    def publish_markers(self, points, pub, color_r=1.0):
+    def publish_markers(self, points, pub, color_r=1.0, color_g=0., color_b=0.):
         if points is None or len(points) == 0:
             return
         marker = Marker()
@@ -74,6 +74,9 @@ class Robot(object):
         marker.scale.z = 0.1
         marker.color.a = 1.0
         marker.color.r = color_r
+        marker.color.g = color_g
+        marker.color.b = color_b
+
         pub.publish(marker)
 
         self.rate_limiter.sleep()
