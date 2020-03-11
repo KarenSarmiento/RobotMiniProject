@@ -22,9 +22,9 @@ SPEED = 0.2
 
 
 class Follower(Robot):
-    def __init__(self, name, rate_limiter, desired_rel_pos, des_d, des_psi, leader, laser_range=[np.pi/4, np.pi/4], other_follower=None):
+    def __init__(self, name, rate_limiter, desired_rel_pos, des_d, des_psi, leader, laser_range=[np.pi/2.7, np.pi/2.7], other_follower=None):
         super(Follower, self).__init__(
-            name, rate_limiter=rate_limiter, map_frame=name+"/occupancy_grid", laser_range=laser_range)
+            name, rate_limiter=rate_limiter, map_frame=name+"/occupancy_grid", laser_range=laser_range, laser_dist=2.5)
         # desired pos relative to leader
         self._desired_rel_pos = np.array(
             [des_d*np.cos(des_psi), des_d*np.sin(des_psi)])
@@ -75,7 +75,7 @@ class Follower(Robot):
 
     def get_controls_formula(self, leader_pose):
         # Tolerate error of 10cm
-        if np.linalg.norm(leader_pose[:-1]) < self.des_d + 0.1:
+        if np.linalg.norm(leader_pose[:-1]) < self.des_d + 0.05:
             print("{} is close enough, stopping".format(self.name))
             return 0, 0
 

@@ -29,7 +29,7 @@ stop_msg.angular.z = 0.
 class Leader(Robot):
     def __init__(self, name, rate_limiter):
         super(Leader, self).__init__(name, rate_limiter=rate_limiter,
-                                     laser_range=[np.pi/4., np.pi/4], laser_dist=3)
+                                     laser_range=[np.pi/3.5, np.pi/3.5], laser_dist=2)
         self._epsilon = 0.1
         self.leg_pub = rospy.Publisher(
             '/' + name + '/legs', Marker, queue_size=5)
@@ -41,6 +41,7 @@ class Leader(Robot):
         self.last_vel = np.array([0., 0.])
         self.all_around_laser = Laser(name=name, laser_range=[np.pi, np.pi])
         self.last_legs = None
+
         def f(state, noise):
             pass
 
@@ -59,6 +60,7 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs()
+        print("legs at ", follow)   
         # if self.last_legs is not None:
         #     # predict + update with kalman
         #     follow = self.kf.smooth(follow)
@@ -130,7 +132,7 @@ class Leader(Robot):
             c = np.array([0., 0.])
             if self.last_legs is not None:
                 c = self.last_legs
-            
+
         elif len(centroids) == 1:
             # TODO: don't move if only one cluster (one cluster => not legs)
             c = centroids[0]
@@ -148,23 +150,21 @@ class Leader(Robot):
                 c = c3
             else:
                 return np.array([0., 0.])
-            if self.last_legs is not None:
-                print(self.last_legs)
-                possible_pairs = []
-                possible_centroids = []
-                for x in centroids:
-                    for y in centroids:
-                        print(x, y)
-                        if 0.1 < np.linalg.norm(y-x) < 0.4:
-                            possible_pairs.append(np.array([x, y]))
-                            possible_centroids.append((x+y)/2)
-                if len(possible_centroids) == 0:
-                    return np.array([0., 0.])
-                print("p", possible_centroids)
-                closest_index = distance.cdist(
-                    np.array([self.last_legs]), np.array(possible_centroids)).argmin()
-                next_centroid = possible_centroids[closest_index]
-                c = next_centroid
+            # if self.last_legs is not None:
+            #     possible_pairs = []
+            #     possible_centroids = []
+            #     for x in centroids:
+            #         for y in centroids:
+            #             print(x, y)
+            #             if 0.1 < np.linalg.norm(y-x) < 0.4:
+            #                 possible_pairs.append(np.array([x, y]))
+            #                 possible_centroids.append((x+y)/2)
+            #     if len(possible_centroids) == 0:
+            #         return np.array([0., 0.])
+            #     closest_index = distance.cdist(
+            #         np.array([self.last_legs]), np.array(possible_centroids)).argmin()
+            #     next_centroid = possible_centroids[closest_index]
+            #     c = next_centroid
 
         self.follow = c
         self.abs_leg_pos = c + self.slam.pose[:-1]
