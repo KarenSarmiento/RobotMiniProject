@@ -18,19 +18,24 @@ if __name__ == '__main__':
     plt.plot(data[:, 3], data[:, 4], 'g', label='estimated')
   # Cylinder.
   a = np.linspace(0., 2 * np.pi, 20)
-  x = np.cos(a) * .3 + .3
-  y = np.sin(a) * .3 + .2
+  x = np.cos(a) * .05 + .0
+  y = np.sin(a) * .05 + 2.
+  plt.plot(x, y, 'k')
+
+  a = np.linspace(0., 2 * np.pi, 20)
+  x = np.cos(a) * .05 + 0.4
+  y = np.sin(a) * .05 + 2.
   plt.plot(x, y, 'k')
   # Walls.
-  plt.plot([-2, 2], [-2, -2], 'k')
-  plt.plot([-2, 2], [2, 2], 'k')
-  plt.plot([-2, -2], [-2, 2], 'k')
-  plt.plot([2, 2], [-2, 2], 'k')
+  plt.plot([-2, 2.], [-2, -2], 'k')
+  plt.plot([-2, 2.], [2.5, 2.5], 'k')
+  plt.plot([-2, -2], [-2, 2.5], 'k')
+  plt.plot([2, 2.], [-2, 2.5], 'k')
   plt.axis('equal')
   plt.xlabel('x')
   plt.ylabel('y')
   plt.xlim([-2.5, 2.5])
-  plt.ylim([-2.5, 2.5])
+  plt.ylim([-2.5, 3.])
 
   if data.shape[1] == 6:
     plt.figure()

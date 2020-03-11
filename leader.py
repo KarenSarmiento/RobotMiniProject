@@ -1,5 +1,5 @@
 from laser import Laser
-#from pykalman import KalmanFilter
+from pykalman import KalmanFilter, UnscentedKalmanFilter
 from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 from tf import TransformListener
@@ -12,6 +12,8 @@ import numpy as np
 from sklearn.metrics import pairwise_distances
 import os
 import sys
+from scipy.spatial import distance
+
 directory = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), '.')
 sys.path.insert(0, directory)
@@ -26,7 +28,8 @@ stop_msg.angular.z = 0.
 
 class Leader(Robot):
     def __init__(self, name, rate_limiter):
-        super(Leader, self).__init__(name, rate_limiter=rate_limiter, laser_range=[np.pi/4., np.pi/4], laser_dist=1.2)
+        super(Leader, self).__init__(name, rate_limiter=rate_limiter,
+                                     laser_range=[np.pi/4., np.pi/4], laser_dist=3)
         self._epsilon = 0.1
         self.leg_pub = rospy.Publisher(
             '/' + name + '/legs', Marker, queue_size=5)
@@ -38,15 +41,14 @@ class Leader(Robot):
         self.last_vel = np.array([0., 0.])
         self.all_around_laser = Laser(name=name, laser_range=[np.pi, np.pi])
         self.last_legs = None
-
         def f(state, noise):
             pass
 
         def g(state, noise):
             pass
 
-        #self.ukf = UnscentedKalmanFilter(f, g)
-        #self.kf = None
+        self.ukf = UnscentedKalmanFilter(f, g)
+        self.kf = None
 
     def get_centroids_from_all_around_laser(self):
         return self.all_around_laser.centroids
@@ -57,17 +59,16 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs()
-        """
-        if self.last_legs is not None:
-            # predict + update with kalman
-            follow = self.kf.smooth(follow)
-            self.kf = self.kf.em(follow)
-        else:
-            self.kf = KalmanFilter(initial_state_mean=0, n_dim_obs=2)
-            self.kf = self.kf.em(follow)
-        """
+        # if self.last_legs is not None:
+        #     # predict + update with kalman
+        #     follow = self.kf.smooth(follow)
+        #     self.kf = self.kf.em(follow)
+        # else:
+        #     self.kf = KalmanFilter(initial_state_mean=0, n_dim_obs=2)
+        #     self.kf = self.kf.em(follow)
         # 20cm away from object is good enough
-        goal_reached = np.linalg.norm(follow) < .2
+
+        goal_reached = np.linalg.norm(follow) < .4
         if goal_reached or not np.isfinite(np.linalg.norm(follow)):
             if goal_reached:
                 print("Goal reached")
@@ -78,8 +79,8 @@ class Leader(Robot):
             return
 
         # TODO: PID here?
-        v = cap(0.2*follow, SPEED)
-
+        v = cap(0.1*follow, SPEED)
+        print("leader v", v)
         self.publish_v(v, self.v_pub)
         # relative feedback linearization
         u, w = self.feedback_linearized(
@@ -96,7 +97,7 @@ class Leader(Robot):
     def feedback_linearized(self, pose, v, epsilon):
         u = v[X]
         w = v[Y] / epsilon
-        return u, w
+        return u, w*0.9
 
     def publish_v(self, v, pub):
         m = Marker()
@@ -127,10 +128,14 @@ class Leader(Robot):
 
         if len(centroids) == 0:
             c = np.array([0., 0.])
+            if self.last_legs is not None:
+                c = self.last_legs
+            
         elif len(centroids) == 1:
             # TODO: don't move if only one cluster (one cluster => not legs)
             c = centroids[0]
         else:
+
             pd = pairwise_distances(centroids)
             # get first index of the minimum non-zero distance
             i = np.argwhere(pd == np.min(pd[(pd > 0.)]))[0]
@@ -143,12 +148,31 @@ class Leader(Robot):
                 c = c3
             else:
                 return np.array([0., 0.])
+            if self.last_legs is not None:
+                print(self.last_legs)
+                possible_pairs = []
+                possible_centroids = []
+                for x in centroids:
+                    for y in centroids:
+                        print(x, y)
+                        if 0.1 < np.linalg.norm(y-x) < 0.4:
+                            possible_pairs.append(np.array([x, y]))
+                            possible_centroids.append((x+y)/2)
+                if len(possible_centroids) == 0:
+                    return np.array([0., 0.])
+                print("p", possible_centroids)
+                closest_index = distance.cdist(
+                    np.array([self.last_legs]), np.array(possible_centroids)).argmin()
+                next_centroid = possible_centroids[closest_index]
+                c = next_centroid
+
         self.follow = c
         self.abs_leg_pos = c + self.slam.pose[:-1]
         return c
 
     def publish_leg(self):
-        self.publish_markers(np.array([self.follow]), self.leg_pub)
+        self.publish_markers(
+            np.array([self.follow]), self.leg_pub, color_b=1, color_r=0)
 
     @property
     def epsilon(self):

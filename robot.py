@@ -29,7 +29,8 @@ class Robot(object):
         self.pose_history = []
         self.publisher = rospy.Publisher(
             '/' + name + '/cmd_vel', Twist, queue_size=5)
-        self.laser = Laser(name=name, laser_range=laser_range, max_range=laser_dist)
+        self.laser = Laser(
+            name=name, laser_range=laser_range, max_range=laser_dist)
         self.slam = SLAM(name=name, map_frame=map_frame)
         self.name = name
         self.rate_limiter = rate_limiter
@@ -50,12 +51,14 @@ class Robot(object):
 
         return u, w*1.2
 
-    def publish_markers(self, points, pub, color_r=1.0, color_g=0., color_b=0.):
+    def publish_markers(self, points, pub, color_r=1.0, color_g=0., color_b=0., sphere=False):
         if points is None or len(points) == 0:
             return
         marker = Marker()
         marker.header.frame_id = "/"+self.name+"/base_link"
         marker.type = marker.POINTS
+        if sphere:
+            marker.type = marker.SPHERE
         marker.action = marker.ADD
         marker.pose.orientation.w = 1
 

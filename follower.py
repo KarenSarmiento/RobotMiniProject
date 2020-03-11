@@ -25,22 +25,32 @@ class Follower(Robot):
     def __init__(self, name, rate_limiter, desired_rel_pos, des_d, des_psi, leader, laser_range=[np.pi/4, np.pi/4], other_follower=None):
         super(Follower, self).__init__(
             name, rate_limiter=rate_limiter, map_frame=name+"/occupancy_grid", laser_range=laser_range)
-        # TODO: calculate this from des_d and des_psi
-        self._desired_rel_pos = desired_rel_pos
+        # desired pos relative to leader
+        self._desired_rel_pos = np.array(
+            [des_d*np.cos(des_psi), des_d*np.sin(des_psi)])
         self._epsilon = 0.1
         self.last_leader_pos = None
         self.centroid_pub = rospy.Publisher(
             '/' + name + '/centroids', Marker, queue_size=5)
+        self.leader_pub = rospy.Publisher(
+            '/' + name + '/leader_pos', Marker, queue_size=5)
         self.last_pose = None
         self.des_d = des_d
         self.des_psi = des_psi
         self.leader = leader
         self.offset = None
         self.other_follower = other_follower
+        self.ready = False
 
     def formation_velocity(self):
-        print("---", self.name, "---")
         self.slam.update()
+        if not self.slam.ready or not self.laser.ready:
+            print(self.slam.ready, self.laser.ready)
+            print("wait for slam and laser")
+            return
+        if self.last_leader_pos is not None and np.linalg.norm(self.last_leader_pos) != 0:
+            self.ready = True
+        print("---", self.name, "---")
         # Return if not ready.
         if not self.laser.ready:  # or not self.slam.ready:
             self.rate_limiter.sleep()
@@ -65,8 +75,8 @@ class Follower(Robot):
 
     def get_controls_formula(self, leader_pose):
         # Tolerate error of 10cm
-        if np.linalg.norm(leader_pose[:-1]) < .1:
-            print("{} is close enough, stopping", self.name)
+        if np.linalg.norm(leader_pose[:-1]) < self.des_d + 0.1:
+            print("{} is close enough, stopping".format(self.name))
             return 0, 0
 
         l_ij = np.linalg.norm(leader_pose[X:Y+1])
@@ -107,7 +117,7 @@ class Follower(Robot):
         u_j = np.dot(np.linalg.inv(G), (k*(zd_ij-z_ij) -
                                         np.dot(F, np.array([self.leader.last_vel]).transpose())))
         # # print(u,w)
-        u = u_j[0][0] * 0.1
+        u = u_j[0][0] * 0.15
         w = u_j[1][0] * 0.01
         return u, w
 
@@ -118,10 +128,18 @@ class Follower(Robot):
         return u, w
 
     def get_leader_position(self):
+        if "1" in self.name:
+            r, g, b = 0, 1, 0
+        else:
+            r, g, b = 0, 0, 1
+
         # return estimate of relative position of leader through clustering
         cs = self.laser.centroids
         if cs is None or len(cs) == 0:
             return np.array([0., 0.])
+        self.publish_markers(
+            cs, self.centroid_pub, color_b=b, color_r=r, color_g=g)
+
         print("possible leaders: {}".format(cs))
 
         centroids_from_leader = -self.leader.get_centroids_from_all_around_laser()
@@ -138,13 +156,10 @@ class Follower(Robot):
             rel_leader_pos = cs[closest_index]
 
         self.last_leader_pos = rel_leader_pos
-        if "1" in self.name:
-            r,g,b = 0,1,0        
-        else:
-            r,g,b = 0,0,1
 
         self.publish_markers(
-            np.array([rel_leader_pos]), self.centroid_pub, color_b=b, color_r=r, color_g=g)
+            np.array([rel_leader_pos]), self.leader_pub, color_b=b, color_r=r, color_g=g)
+
         print("chosen leader is {}".format(rel_leader_pos))
         # if np.linalg.norm(rel_leader_pos) < 0.5:
         #     self.publisher.publish(stop_msg)
