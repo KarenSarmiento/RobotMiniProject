@@ -20,7 +20,7 @@ sys.path.insert(0, directory)
 X = 0
 Y = 1
 YAW = 2
-SPEED = 0.2
+SPEED = 0.1
 stop_msg = Twist()
 stop_msg.linear.x = 0.
 stop_msg.angular.z = 0.
@@ -60,7 +60,7 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs()
-        print("legs at ", follow)   
+        print("legs at ", follow)
         # if self.last_legs is not None:
         #     # predict + update with kalman
         #     follow = self.kf.smooth(follow)
