@@ -60,7 +60,7 @@ class Leader(Robot):
 
         # follow is relative to robot frame
         follow = self.find_legs()
-        print("legs at ", follow)
+        print("legs at ", follow)   
         # if self.last_legs is not None:
         #     # predict + update with kalman
         #     follow = self.kf.smooth(follow)

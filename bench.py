@@ -32,6 +32,7 @@ X = 0
 Y = 1
 YAW = 2
 
+
 class GroundtruthPose(object):
     def __init__(self, name='turtlebot3_burger'):
         rospy.Subscriber('/gazebo/model_states', ModelStates, self.callback)
@@ -51,7 +52,7 @@ class GroundtruthPose(object):
             msg.pose[idx].orientation.y,
             msg.pose[idx].orientation.z,
             msg.pose[idx].orientation.w])
-             
+
         self._pose[2] = yaw
 
     @property
@@ -62,18 +63,19 @@ class GroundtruthPose(object):
     def pose(self):
         return self._pose
 
+
 class CentroidPosition(object):
     def __init__(self, name='turtlebot3_burger'):
         self._name = name
         self._pos = np.array([np.nan, np.nan])
-        rospy.Subscriber('/'+self._name+'/centroid', Marker, self.callback) 
+        rospy.Subscriber('/'+self._name+'/legs', Marker, self.callback)
 
     def callback(self, msg):
-        idx = [i for i, n in enumerate(msg.name) if n == self._name]
-        if not idx:
-            raise ValueError(
-                'Specified name "{}" does not exist.'.format(self._name))
-        idx = idx[0]
+        # idx = [i for i, n in enumerate(msg.name) if n == self._name]
+        # if not idx:
+        #     raise ValueError(
+        #         'Specified name "{}" does not exist.'.format(self._name))
+        # idx = idx[0]
         self._pos[0] = msg.points[-1].x
         self._pos[1] = msg.points[-1].y
 
@@ -85,6 +87,7 @@ class CentroidPosition(object):
     def pos(self):
         return self._pos
 
+
 def run(args):
 
     rospy.init_node('benchmarking')
@@ -93,46 +96,49 @@ def run(args):
     rate_limiter = rospy.Rate(200)
 
     leader = GroundtruthPose("tb3_0")
-    follower_1 = GroundtruthPose("tb3_1")
-    follower_2 = GroundtruthPose("tb3_2")
-    #legs = CentroidPosition("tb3_0") 
+    # follower_1 = GroundtruthPose("tb3_1")
+    # follower_2 = GroundtruthPose("tb3_2")
+    legs = CentroidPosition("tb3_0")
 
     while not rospy.is_shutdown():
-        while not leader.ready or not follower_1.ready or not follower_2.ready:
+        while not leader.ready:
             pass
         global leader_poses
         leader_poses.append(leader.pose.copy())
         global follower_1_poses
-        follower_1_poses.append(follower_1.pose.copy())
+        # follower_1_poses.append(follower_1.pose.copy())
         global follower_2_poses
-        follower_2_poses.append(follower_2.pose.copy())
-        #global leg_positions
-        #leg_positions.append(legs.pos.copy())
+        # follower_2_poses.append(follower_2.pose.copy())
+        global leg_positions
+        leg_positions.append(legs.pos.copy())
         global times
         times.append(rospy.Time.now().to_nsec())
         rate_limiter.sleep()
 
+
 def save_data():
-  import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
-  print("Getting logged values...")
-  global leader_poses
-  global follower_1_poses
-  global follower_2_poses
-  global times
-  l_poses = np.transpose(np.array(leader_poses))
-  f1_poses = np.transpose(np.array(follower_1_poses))
-  f2_poses = np.transpose(np.array(follower_2_poses))
-  #leg_positions = np.transpose(np.array(leg_positions))
-  tms = np.array(times)
+    print("Getting logged values...")
+    global leader_poses
+    # global follower_1_poses
+    # global follower_2_poses
+    global leg_positions
+    global times
+    l_poses = np.transpose(np.array(leader_poses))
+    # f1_poses = np.transpose(np.array(follower_1_poses))
+    # f2_poses = np.transpose(np.array(follower_2_poses))
+    l_positions = np.transpose(np.array(leg_positions))
+    tms = np.array(times)
 
-  print("Saving values to files...")
-  np.savetxt('leader_poses', l_poses)
-  np.savetxt('follower_1_poses', f1_poses)
-  np.savetxt('follower_2_poses', f2_poses)
-  #np.savetxt('leg_positions', leg_positions)
-  np.savetxt('time_vals', tms)
-  print("Done.")
+    print("Saving values to files...")
+    np.savetxt('leader_poses', l_poses)
+    # np.savetxt('follower_1_poses', f1_poses)
+    # np.savetxt('follower_2_poses', f2_poses)
+    np.savetxt('leg_positions', l_positions)
+    np.savetxt('time_vals', tms)
+    print("Done.")
+
 
 if __name__ == '__main__':
     args = None

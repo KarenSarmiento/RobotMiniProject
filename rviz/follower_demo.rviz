@@ -35,7 +35,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: LaserScan
 Toolbars:
   toolButtonStyle: 2
 Visualization Manager:
@@ -57,7 +57,7 @@ Visualization Manager:
         Z: 0
       Plane: XY
       Plane Cell Count: 100
-      Reference Frame: tb3_2/map
+      Reference Frame: tb3_0/map
       Value: true
     - Alpha: 1
       Class: rviz/RobotModel
@@ -104,7 +104,7 @@ Visualization Manager:
           Value: true
       Name: RobotModel
       Robot Description: robot_description
-      TF Prefix: tb3_2
+      TF Prefix: tb3_0
       Update Interval: 0
       Value: true
       Visual Enabled: true
@@ -170,7 +170,7 @@ Visualization Manager:
       Draw Behind: false
       Enabled: true
       Name: Map
-      Topic: /tb3_2/map
+      Topic: /tb3_0/map
       Unreliable: false
       Use Timestamp: false
       Value: true
@@ -225,7 +225,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: tb3_2/map
+    Fixed Frame: tb3_0/map
     Frame Rate: 30
   Name: root
   Tools:
@@ -245,7 +245,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: -1.58079648
+      Angle: -1.57579648
       Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
