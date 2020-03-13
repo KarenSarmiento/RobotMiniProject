@@ -1,3 +1,0 @@
-<launch>
-	<node pkg="multi_robot" type="rrt_navigation.py" name="rrt_navigation" output="screen"></node>
-</launch>

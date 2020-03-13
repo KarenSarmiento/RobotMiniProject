@@ -65,6 +65,6 @@
   <!-- rviz -->
   <group if="$(arg open_rviz)"> 
     <node pkg="rviz" type="rviz" name="rviz" required="true"
-          args="-d $(find multi_robot)/rviz/single_slam.rviz"/>
+          args="-d $(find multi_robot)/rviz/follower_demo.rviz"/>
   </group>
 </launch>

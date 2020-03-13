@@ -20,6 +20,21 @@
   <arg name="third_tb3_y_pos" default=" 1.0"/>
   <arg name="third_tb3_z_pos" default=" 0.0"/>
   <arg name="third_tb3_yaw"   default=" 0.0"/>
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+    <param name="publish_frequency" type="double" value="50.0" />
+    <param name="tf_prefix" value="$(arg first_tb3)"/>
+  </node>
+
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher1">
+    <param name="publish_frequency" type="double" value="50.0" />
+    <param name="tf_prefix" value="$(arg second_tb3)"/>
+  </node>
+
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher2">
+    <param name="publish_frequency" type="double" value="50.0" />
+    <param name="tf_prefix" value="$(arg third_tb3)"/>
+  </node>
+
 
   <arg name="slam_methods" default="gmapping" doc="slam type [gmapping]"/>
   <arg name="open_rviz" default="true"/>
@@ -130,8 +145,7 @@
     <param name="lasamplerange" value="0.005"/>
     <param name="lasamplestep" value="0.005"/>
   </node>
-
-  <group ns="$(arg first_tb3)/map_merge">
+  <!-- <group ns="$(arg first_tb3)/map_merge">
     <param name="init_pose_x"   value="$(arg first_tb3_x_pos)"/>
     <param name="init_pose_y"   value="$(arg first_tb3_y_pos)"/>
     <param name="init_pose_z"   value="$(arg first_tb3_z_pos)"/>
@@ -167,9 +181,9 @@
 
   <node pkg="multi_robot" type="map_merger" name="map_merger"/>
 
-  <!--<node pkg="tf" type="static_transform_publisher" name="world_to_$(arg first_tb3)_tf_broadcaster"  args="0 0 0 0 0 0 /map /$(arg first_tb3)/map 100"/>
-  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg second_tb3)_tf_broadcaster" args="0 1 0 0 0 0 /map /$(arg second_tb3)/map 100"/>
-  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg third_tb3)_tf_broadcaster" args="1 0 0 0.75 0 0 /map /$(arg third_tb3)/map 100"/>-->
+  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg first_tb3)_tf_broadcaster"  args="0 0 0 0 0 0 /map /$(arg first_tb3)/map 100"/>
+  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg second_tb3)_tf_broadcaster" args="0 0 0 0 0 0 /map /$(arg second_tb3)/map 100"/>
+  <node pkg="tf" type="static_transform_publisher" name="world_to_$(arg third_tb3)_tf_broadcaster" args="0 0 0 0 0 0 /map /$(arg third_tb3)/map 100"/> -->
 
   <!-- rviz -->
   <group if="$(arg open_rviz)"> 

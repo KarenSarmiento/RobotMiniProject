@@ -1,0 +1,3 @@
+<launch>
+	<node pkg="multi_robot" type="formation.py" name="leader" output="screen"></node>	
+</launch>
